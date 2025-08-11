@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ml-project"
+version = "0.1.0"
+description = "Machine learning project template"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Farhad" }]
+license = { file = "LICENSE" }
+keywords = ["machine-learning", "template", "uv"]
+
+# Runtime deps (kept lean). Dev tools go in dependency groups.
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "scikit-learn>=1.4",
+  "matplotlib>=3.8",
+  "seaborn>=0.13",
+  "PyYAML>=6.0",
+  "pytest>=8.2",
+  "pre-commit>=3.7",
+  "jupyter>=1.0"
+]
+
+[dependency-groups]
+# Install with: uv sync --group dev  (README shows how)
+dev = [
+  "black>=24.4",
+  "ruff>=0.4",
+  "isort>=5.13",
+  "mypy>=1.10",
+  "ipykernel>=6.29"
+]
+
+[tool.hatch.build.targets.wheel]
+# Package the src module to allow editable installs
+packages = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP", "B"]
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict = false
+install_types = true
+non_interactive = true
