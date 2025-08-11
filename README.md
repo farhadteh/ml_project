@@ -100,6 +100,38 @@ uv run pre-commit install
         └── exploration.py
 ```
 
+## Pre-commit Checks
+
+Run these checks manually before committing to avoid having your commits rejected:
+
+1. **Run all pre-commit hooks on all files**:
+   ```bash
+   uv run pre-commit run --all-files
+   ```
+
+2. **Run pre-commit on only staged files** (what would happen during commit):
+   ```bash
+   uv run pre-commit run
+   ```
+
+3. **Run specific hooks**:
+   ```bash
+   uv run pre-commit run black --all-files
+   uv run pre-commit run ruff --all-files
+   uv run pre-commit run isort --all-files
+   ```
+
+4. **Run individual tools directly**:
+   ```bash
+   uv run black .
+   uv run ruff check . --fix
+   uv run isort .
+   ```
+
+Common fixes for pre-commit issues:
+- Fix import ordering: `uv run isort .`
+- Fix ruff linting issues: `uv run ruff check . --fix`
+
 ## Notes
 - Dev tools live in a dependency group; install them with `uv sync --group dev`.
 - Pre-commit manages its own hook environments; having tools in the venv speeds up runs but is optional.

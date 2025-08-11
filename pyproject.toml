@@ -52,11 +52,14 @@ target-version = ["py312"]
 [tool.isort]
 profile = "black"
 line_length = 100
+src_paths = ["src"]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "I", "UP", "B"]
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B"]
 
 [tool.mypy]
 python_version = "3.12"

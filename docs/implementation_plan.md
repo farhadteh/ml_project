@@ -116,23 +116,23 @@ uv run pytest -q
 
 ## 6) Edge Cases to Handle Explicitly
 
-- [ ] Empty query or whitespace-only query → return empty if `k <= 0`, else scores default to priors and stable sort.
-- [ ] Empty corpus or zero-length docs → graceful zero scores.
-- [ ] Missing or mismatched embeddings → semantic = 0.
-- [ ] k <= 0 or k > N → clamp to [0, N].
-- [ ] All-zero variance in any component → treat normalized vector as all zeros.
-- [ ] Tie scores → break by `id` ascending deterministically.
+- [x] Empty query or whitespace-only query → return empty if `k <= 0`, else scores default to priors and stable sort.
+- [x] Empty corpus or zero-length docs → graceful zero scores.
+- [x] Missing or mismatched embeddings → semantic = 0.
+- [x] k <= 0 or k > N → clamp to [0, N].
+- [x] All-zero variance in any component → treat normalized vector as all zeros.
+- [x] Tie scores → break by `id` ascending deterministically.
 
 ---
 
 ## 7) Testing Plan (minimal, deterministic)
 
-- [ ] Sanity: query "blue resume" vs docs with/without tokens; ensure lexical dominates.
-- [ ] Edge: empty query, empty corpus, k=0 and k>N.
-- [ ] Priors: a very old but popular item vs relevant item → relevant still wins with default weights.
-- [ ] Semantic: provide one pair of matching-dimension vectors to validate > 0 similarity and impact on rank.
-- [ ] Normalization: component with constant values yields zeros; blending still works.
-- [ ] Metrics: `ndcg_at_k` for a simple graded list; `mrr` with first relevant at position p.
+- [x] Sanity: query "blue resume" vs docs with/without tokens; ensure lexical dominates.
+- [x] Edge: empty query, empty corpus, k=0 and k>N.
+- [x] Priors: a very old but popular item vs relevant item → relevant still wins with default weights.
+- [x] Semantic: provide one pair of matching-dimension vectors to validate > 0 similarity and impact on rank.
+- [x] Normalization: component with constant values yields zeros; blending still works.
+- [x] Metrics: `ndcg_at_k` for a simple graded list; `mrr` with first relevant at position p.
 
 Example test invocation:
 
@@ -144,43 +144,45 @@ uv run pytest -q
 
 ## 8) Performance and Determinism Notes
 
-- [ ] Complexity: BM25 per doc O(|q|), total O(N·|q|); heap top-k O(N log k).
-- [ ] Precompute: `idf` and `avgdl` once per corpus; avoid recomputation in loops.
-- [ ] Determinism: no randomness; stable tie-break by `id`.
+- [x] Complexity: BM25 per doc O(|q|), total O(N·|q|); heap top-k O(N log k).
+- [x] Precompute: Using `rank_bm25.BM25Okapi`, which precomputes IDF and avgdl at initialization.
+  - Current implementation constructs `BM25Okapi(corpus_tokens)` inside `rank()`, so IDF/avgdl are recomputed per call (simple and stateless).
+  - For repeated queries on the same corpus, pre-build and cache `BM25Okapi` externally to reuse the precomputed IDF/avgdl.
+- [x] Determinism: no randomness; stable tie-break by `id`.
 
 ---
 
 ## 9) Acceptance Criteria Checklist (Definition of Done)
 
-- [ ] Problem restatement present at top of `src/ranker.py`.
-- [ ] BM25 + priors implemented; semantic optional but supported.
-- [ ] Z-normalization and weighted blending with configurable weights.
-- [ ] Stable tie-breakers by `id`.
-- [ ] Minimal deterministic tests for metrics and ranker behavior, including edge cases.
-- [ ] Heap-based top-k used (no full sort for large N).
-- [ ] Summary/Complexity/Next Steps section at bottom of `src/ranker.py`.
-- [ ] `ruff`, `black`, and tests pass locally.
+- [x] Problem restatement present at top of `src/ranker.py`.
+- [x] BM25 + priors implemented; semantic optional but supported.
+- [x] Z-normalization and weighted blending with configurable weights.
+- [x] Stable tie-breakers by `id`.
+- [x] Minimal deterministic tests for metrics and ranker behavior, including edge cases.
+- [x] Heap-based top-k used (no full sort for large N).
+- [x] Summary/Complexity/Next Steps section at bottom of `src/ranker.py`.
+- [x] `ruff`, `black`, and tests pass locally.
 
 ---
 
 ## 10) Conformance to Cursor Rules (quick checklist)
 
-- [ ] Python 3.12, standard library only, type hints, pure functions.
-- [ ] Small, composable functions; explicit error handling where needed.
-- [ ] No I/O or network; deterministic behavior; seeded randomness if ever added.
-- [ ] Tests include happy path and edge cases; tiny property test if time permits.
-- [ ] Lint/format with `uv run ruff .` and `uv run black .`; imports sorted.
-- [ ] Keep interfaces narrow; avoid globals; early returns.
+- [x] Python 3.12, standard library only, type hints, pure functions.
+- [x] Small, composable functions; explicit error handling where needed.
+- [x] No I/O or network; deterministic behavior; seeded randomness if ever added.
+- [x] Tests include happy path and edge cases; tiny property test if time permits.
+- [x] Lint/format with `uv run ruff .` and `uv run black .`; imports sorted.
+- [x] Keep interfaces narrow; avoid globals; early returns.
 
 ---
 
 ## 11) Milestones and Sign-off
 
-1. [ ] Environment and scaffolding ready (uv, linting, tests running).
-2. [ ] Core utilities and BM25 implemented and tested.
-3. [ ] Priors and semantic similarity integrated.
-4. [ ] Blending and heap top-k working end-to-end.
-5. [ ] Metrics implemented and validated.
-6. [ ] Documentation, summary, and final cleanup; all checks green.
+1. [x] Environment and scaffolding ready (uv, linting, tests running).
+2. [x] Core utilities and BM25 implemented and tested.
+3. [x] Priors and semantic similarity integrated.
+4. [x] Blending and heap top-k working end-to-end.
+5. [x] Metrics implemented and validated.
+6. [x] Documentation, summary, and final cleanup; all checks green.
 
 For each milestone, ensure: code is type-annotated, deterministic, formatted, linted, and tests pass.

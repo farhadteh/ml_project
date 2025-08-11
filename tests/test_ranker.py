@@ -49,6 +49,17 @@ def test_rank_lexical_beats_priors_with_weights() -> None:
     assert results[0][0] == "rel"
 
 
+def test_rank_semantic_influences_when_embeddings_provided() -> None:
+    """Semantic similarity affects ranking when query and doc embeddings align."""
+    docs = [
+        {"id": "a", "tokens": ["irrelevant"], "emb": [1.0, 0.0]},
+        {"id": "b", "tokens": ["irrelevant"], "emb": [0.0, 1.0]},
+    ]
+    # Query embedding closer to doc 'a'
+    results = rank("", docs, k=2, weights=(0.0, 1.0, 0.0), query_embedding=[1.0, 0.0])
+    assert results[0][0] == "a"
+
+
 def test_rank_k_edge_cases() -> None:
     """k bounds are respected: k<=0 returns empty; large k caps at corpus size."""
     docs = get_sample_documents()

@@ -266,7 +266,11 @@ Weights = tuple[float, float, float]
 
 
 def rank(
-    query: str, documents: Sequence[Document], k: int, weights: Weights = (1.0, 0.5, 0.2)
+    query: str,
+    documents: Sequence[Document],
+    k: int,
+    weights: Weights = (1.0, 0.5, 0.2),
+    query_embedding: Sequence[float] | None = None,
 ) -> list[tuple[str, float]]:
     """Rank documents given a text query using BM25 + semantic + priors.
 
@@ -286,6 +290,9 @@ def rank(
         Number of results to return.
     weights: Weights
         (alpha_bm25, beta_semantic, gamma_priors) for blending.
+    query_embedding: Sequence[float] | None
+        Optional query embedding. If provided and document embeddings are present and
+        dimension-matched, semantic similarity contributes to the final score.
 
     Returns
     -------
@@ -324,20 +331,14 @@ def rank(
     # when weighted accordingly.
     if query_tokens and all(score == 0.0 for score in bm25_values):
         query_set = set(query_tokens)
-        bm25_values = [
-            float(len(query_set.intersection(set(tokens)))) for tokens in corpus_tokens
-        ]
+        bm25_values = [float(len(query_set.intersection(set(tokens)))) for tokens in corpus_tokens]
 
     # Semantic: only if both query and document embeddings exist and have same length
-    query_emb: Sequence[float] | None = None
-    if documents and isinstance(documents[0].get("emb"), list):
-        # If a query embedding is ever provided externally, plug it here.
-        query_emb = None  # Placeholder: no query embedding available in baseline
     semantic_values: list[float] = [0.0 for _ in documents]
-    if query_emb is not None:
+    if query_embedding is not None:
         semantic_values = [
             (
-                cosine_similarity(query_emb, doc.get("emb"))
+                cosine_similarity(query_embedding, doc.get("emb"))
                 if isinstance(doc.get("emb"), list)
                 else 0.0
             )
@@ -433,3 +434,22 @@ if __name__ == "__main__":
     # MRR
     assert abs(mrr([0, 1, 0]) - 0.5) < 1e-12  # first relevant at position 2 (0-indexed)
     assert mrr([0, 0, 0]) == 0.0
+
+# -------------------------------------------------------------
+# Summary / Complexity / Next Steps
+# -------------------------------------------------------------
+# Summary
+# - Implements a deterministic ranker blending BM25, optional semantic similarity, and priors.
+# - Applies per-component z-normalization and weighted linear combination.
+# - Uses a heap-based top-k selection with stable tie-breakers by id.
+#
+# Complexity
+# - BM25 scoring per document: O(|q|); for N docs: O(N · |q|).
+# - Top-k selection: O(N log k) using a min-heap.
+# - Memory: O(N) for storing intermediate component scores and heap of size k.
+#
+# Next Steps
+# - For repeated queries on a static corpus, reuse a BM25Okapi instance to
+#   avoid recomputing IDF and avgdl on each call.
+# - Add support for external query embeddings and a simple embedding model adapter if needed.
+# - Consider learning weights from labeled data or using a small learning-to-rank model.
