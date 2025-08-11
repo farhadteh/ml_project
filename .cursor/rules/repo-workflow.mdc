@@ -1,0 +1,15 @@
+---
+description: Repository workflow, tooling, and commands
+globs: ["**/*"]
+alwaysApply: true
+---
+
+- Use `uv` for env and dependency management.
+  - Install Python: `uv python install 3.12.8`
+  - Create venv: `uv venv` and optional `source .venv/bin/activate`
+  - Install deps: `uv sync` and `uv sync --group dev`
+- Use pre-commit hooks locally. Run all hooks via `uv run pre-commit run --all-files`.
+- Tests via `uv run pytest`. Keep tests under `tests/` and fast (unit-level by default).
+- Common Make targets: `make format`, `make lint`, `make test`, `make data`, `make train`.
+- Branch naming: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`; open PRs into `main`.
+- Keep config in `configs/` (YAML). Do not hardcode local paths; pass paths via args or config.

@@ -1,0 +1,9 @@
+---
+description: Scope AI context to relevant code and docs
+globs: ["**/*"]
+alwaysApply: true
+---
+
+- Prefer files in `src/`, `tests/`, `configs/`, `README.md`, `pyproject.toml`, and `.pre-commit-config.yaml`.
+- Avoid loading large data/model artifacts or generated reports into context.
+- When editing notebooks is required, prefer moving logic into Python modules in `src/` and import into notebooks.

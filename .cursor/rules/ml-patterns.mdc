@@ -1,0 +1,12 @@
+---
+description: ML-specific patterns and project structure
+globs: ["src/**/*.py", "configs/**/*.yaml"]
+alwaysApply: true
+---
+
+- Use the `src/` layout; import via project module path. Avoid relative imports that break packaging.
+- Reproducibility: set random seeds, capture versions, and persist configs used for runs.
+- Data flow: use `data/raw`, `data/interim`, `data/processed`. Do not write to `raw`.
+- Models and artifacts go under `models/` and `reports/figures/`. Do not commit large binaries.
+- Keep training scripts (`train.py`) thin; move logic into testable modules.
+- Reading configs: prefer `PyYAML` and validate expected keys. Avoid global mutable state.

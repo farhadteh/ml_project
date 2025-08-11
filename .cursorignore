@@ -1,0 +1,23 @@
+# Environments and caches
+.venv/
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+.ipynb_checkpoints/
+
+# Data and models
+/data/
+/models/
+/reports/
+/notebooks/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# VCS and IDE
+.git/
+.DS_Store
+.vscode/
+.idea/

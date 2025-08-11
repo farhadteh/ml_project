@@ -1,0 +1,14 @@
+---
+description: Python coding standards and formatting for this repo
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+- Target Python 3.12; write type-annotated code. Add annotations to function signatures and public APIs.
+- Follow PEP 8; keep line length at 100. Prefer early returns; avoid deep nesting (>3 levels).
+- Use ruff and black formatting. Run: `uv run ruff .` and `uv run black .`.
+- Keep imports sorted (isort profile=black). Avoid unused imports and variables.
+- Prefer pure functions; keep side effects contained. Parameterize I/O paths.
+- Add concise docstrings for non-trivial functions/classes explaining purpose and key params/returns.
+- Use meaningful names (no 1–2 letter names). Avoid comments that just restate code.
+- MyPy: optional during iteration, but must pass before merging to main.
