@@ -71,7 +71,18 @@ Acceptance criteria
 from __future__ import annotations
 
 from collections.abc import Sequence
-from math import sqrt
+from math import exp, log1p, log2, sqrt
+from typing import Any
+
+# Prefer scikit-learn for cosine similarity and NDCG when available
+try:  # pragma: no cover - import guard
+    import numpy as np
+    from sklearn.metrics import ndcg_score as skl_ndcg_score
+    from sklearn.metrics.pairwise import cosine_similarity as skl_cosine_similarity
+
+    _HAS_SKLEARN = True
+except Exception:  # pragma: no cover - optional dependency guard
+    _HAS_SKLEARN = False
 
 
 def tokenize(text: str) -> list[str]:
@@ -167,53 +178,221 @@ def top_k(items: Sequence[tuple[str, float]], k: int) -> list[tuple[str, float]]
     return heap_items
 
 
-def compute_idf(corpus_tokens: Sequence[Sequence[str]]) -> dict[str, float]:
-    """Deprecated: IDF is handled by rank_bm25; kept for compatibility/tests."""
-    from rank_bm25 import BM25Okapi  # type: ignore
-
-    if not corpus_tokens:
-        return {}
-    # BM25Okapi builds idf internally; we expose token->idf using its internals for tests.
-    bm25 = BM25Okapi(corpus_tokens)
-    # bm25.idf is a dict mapping token to idf
-    return dict(bm25.idf)
+# Removed deprecated BM25 helper functions; use rank_bm25.BM25Okapi directly in rank().
 
 
-def compute_avg_doc_len(corpus_tokens: Sequence[Sequence[str]]) -> float:
-    """Deprecated: avgdl is handled by rank_bm25; kept for compatibility/tests."""
-    if not corpus_tokens:
-        return 0.0
-    total_len = sum(len(tokens) for tokens in corpus_tokens)
-    return total_len / float(len(corpus_tokens))
+def cosine_similarity(a: Sequence[float] | None, b: Sequence[float] | None) -> float:
+    """Cosine similarity between two vectors.
 
-
-def bm25_score(
-    query_tokens: Sequence[str],
-    doc_tokens: Sequence[str],
-    idf: dict[str, float] | None = None,
-    avgdl: float | None = None,
-    k1: float = 1.2,
-    b: float = 0.75,
-) -> float:
-    """Compute BM25 score using rank_bm25 for a single document.
-
-    Note: rank_bm25 scores a query against the entire corpus. To score a single
-    document, we instantiate a BM25Okapi over [doc_tokens] and request the score.
-    This is sufficient for tests and small inputs.
+    Uses scikit-learn if available; otherwise falls back to a simple manual implementation.
+    Returns 0.0 if vectors are None, empty, mismatched, or any has zero norm.
     """
-    if not query_tokens or not doc_tokens:
+    if not a or not b or len(a) != len(b):
         return 0.0
 
+    if _HAS_SKLEARN:
+        try:
+            a_arr = np.asarray(a, dtype=float).reshape(1, -1)
+            b_arr = np.asarray(b, dtype=float).reshape(1, -1)
+            sim = skl_cosine_similarity(a_arr, b_arr)[0, 0]
+            if np.isnan(sim):  # guard zero-norm
+                return 0.0
+            return float(sim)
+        except Exception:
+            # Fall through to manual computation
+            pass
+
+    # Manual fallback
+    dot = 0.0
+    norm_a_sq = 0.0
+    norm_b_sq = 0.0
+    for va, vb in zip(a, b, strict=False):
+        dot += va * vb
+        norm_a_sq += va * va
+        norm_b_sq += vb * vb
+    if norm_a_sq <= 0.0 or norm_b_sq <= 0.0:
+        return 0.0
+    return dot / sqrt(norm_a_sq * norm_b_sq)
+
+
+def popularity_prior(clicks: int | None) -> float:
+    """Popularity prior as log1p of non-negative clicks."""
+    value = 0 if clicks is None else max(0, int(clicks))
+    return log1p(value)
+
+
+def recency_prior(age_days: int | None) -> float:
+    """Recency prior decaying exponentially with age in days."""
+    age = 0 if age_days is None else max(0, int(age_days))
+    return exp(-age / 30.0)
+
+
+def blend_scores(
+    bm25_values: Sequence[float],
+    semantic_values: Sequence[float],
+    priors_values: Sequence[float],
+    weights: tuple[float, float, float],
+) -> list[float]:
+    """Blend component scores after per-component z-normalization.
+
+    All input sequences are truncated to the same minimum length. If empty, returns [].
+
+    Params
+    ------
+    bm25_values, semantic_values, priors_values: Sequence[float]
+        Component scores per document.
+    weights: tuple[float, float, float]
+        Weights (alpha_bm25, beta_semantic, gamma_priors).
+
+    Returns
+    -------
+    list[float]
+        Final blended scores per document.
+    """
+    alpha, beta, gamma = weights
+    n = min(len(bm25_values), len(semantic_values), len(priors_values))
+    if n == 0:
+        return []
+
+    bm25_z = z_normalize(bm25_values[:n])
+    sem_z = z_normalize(semantic_values[:n])
+    pri_z = z_normalize(priors_values[:n])
+
+    return [alpha * bm25_z[i] + beta * sem_z[i] + gamma * pri_z[i] for i in range(n)]
+
+
+Document = dict[str, Any]
+Weights = tuple[float, float, float]
+
+
+def rank(
+    query: str, documents: Sequence[Document], k: int, weights: Weights = (1.0, 0.5, 0.2)
+) -> list[tuple[str, float]]:
+    """Rank documents given a text query using BM25 + semantic + priors.
+
+    Notes
+    -----
+    - If a document lacks tokens but has a text field, it will be tokenized on the fly.
+    - Semantic similarity is 0 unless both query and documents contain an embedding under key "emb".
+
+    Params
+    ------
+    query: str
+        Raw query string.
+    documents: Sequence[Document]
+        Items with at least keys: "id" (str) and "tokens" (list[str]) or "text" (str).
+        Optional: "emb" (list[float]), "clicks" (int), "age_days" (int).
+    k: int
+        Number of results to return.
+    weights: Weights
+        (alpha_bm25, beta_semantic, gamma_priors) for blending.
+
+    Returns
+    -------
+    list[tuple[str, float]]
+        Top-k (id, score) sorted by score desc then id asc.
+    """
+    if k <= 0 or not documents:
+        return []
+
+    query_tokens = tokenize(query)
+
+    # Ensure tokens present; avoid mutating input by building transient corpus tokens
+    corpus_tokens: list[list[str]] = []
+    for doc in documents:
+        if "tokens" in doc and isinstance(doc["tokens"], list):
+            tokens: list[str] = [str(t) for t in doc["tokens"]]
+        else:
+            text = str(doc.get("text", ""))
+            tokens = tokenize(text)
+        corpus_tokens.append(tokens)
+
+    # Compute BM25 scores using rank_bm25
     from rank_bm25 import BM25Okapi  # type: ignore
 
-    bm25 = BM25Okapi([list(doc_tokens)], k1=k1, b=b)
-    scores = bm25.get_scores(list(query_tokens))
-    # get_scores returns a numpy array-like of length 1
-    return float(scores[0])
+    if not corpus_tokens or not any(corpus_tokens):
+        bm25_values = [0.0] * len(documents)
+    else:
+        bm25 = BM25Okapi(corpus_tokens)
+        bm25_values = (
+            bm25.get_scores(query_tokens).tolist() if query_tokens else [0.0] * len(documents)
+        )
+
+    # Semantic: only if both query and document embeddings exist and have same length
+    query_emb: Sequence[float] | None = None
+    if documents and isinstance(documents[0].get("emb"), list):
+        # If a query embedding is ever provided externally, plug it here.
+        query_emb = None  # Placeholder: no query embedding available in baseline
+    semantic_values: list[float] = [0.0 for _ in documents]
+    if query_emb is not None:
+        semantic_values = [
+            (
+                cosine_similarity(query_emb, doc.get("emb"))
+                if isinstance(doc.get("emb"), list)
+                else 0.0
+            )
+            for doc in documents
+        ]
+
+    # Priors: combine popularity and recency as a single component
+    priors_values: list[float] = [
+        popularity_prior(doc.get("clicks")) + recency_prior(doc.get("age_days"))
+        for doc in documents
+    ]
+
+    blended = blend_scores(bm25_values, semantic_values, priors_values, weights)
+    id_score_pairs = [(str(doc["id"]), blended[i]) for i, doc in enumerate(documents)]
+    return top_k(id_score_pairs, k)
+
+
+def ndcg_at_k(gains: Sequence[float], k: int) -> float:
+    """Compute NDCG@K for a ranked list of graded gains.
+
+    If scikit-learn is available, delegates to sklearn.metrics.ndcg_score. To preserve the
+    provided ranking order without requiring predicted scores, a synthetic strictly decreasing
+    score vector is used so that the sorting induced by scores matches the input order.
+    Falls back to a manual computation if sklearn is unavailable.
+    """
+    if k <= 0 or not gains:
+        return 0.0
+    limit = min(k, len(gains))
+
+    if _HAS_SKLEARN:
+        try:
+            y_true = np.asarray(gains, dtype=float).reshape(1, -1)
+            # Strictly decreasing scores ensure current order is preserved
+            y_score = np.linspace(len(gains), 1.0, num=len(gains), dtype=float).reshape(1, -1)
+            return float(skl_ndcg_score(y_true, y_score, k=limit))
+        except Exception:
+            # Fall through to manual
+            pass
+
+    # Manual computation
+    dcg = 0.0
+    for i in range(limit):
+        dcg += gains[i] / log2(i + 2.0)
+    sorted_gains = sorted(gains, reverse=True)
+    idcg = 0.0
+    for i in range(limit):
+        idcg += sorted_gains[i] / log2(i + 2.0)
+    if idcg <= 0.0:
+        return 0.0
+    return dcg / idcg
+
+
+def mrr(relevances: Sequence[int]) -> float:
+    """Mean Reciprocal Rank for a single ranked list.
+
+    Returns 0.0 if no relevant item (value > 0) is present.
+    """
+    for index, rel in enumerate(relevances):
+        if rel > 0:
+            return 1.0 / float(index + 1)
+    return 0.0
 
 
 if __name__ == "__main__":
-    # Minimal sanity checks for task 2 utilities
+    # Minimal sanity checks for utilities
     assert tokenize("") == []
     assert tokenize("  Blue   Resume  ") == ["blue", "resume"]
 
@@ -226,11 +405,21 @@ if __name__ == "__main__":
     tk = top_k([("b", 1.0), ("a", 1.0), ("c", 0.5)], 2)
     assert tk == [("a", 1.0), ("b", 1.0)]
 
-    # BM25 quick checks
-    corpus = [["blue", "resume"], ["resume", "template"], ["wedding", "invitation"]]
-    idf = compute_idf(corpus)
-    avgdl = compute_avg_doc_len(corpus)
-    q = ["resume"]
-    s1 = bm25_score(q, corpus[0], idf, avgdl)
-    s2 = bm25_score(q, corpus[1], idf, avgdl)
-    assert s1 > 0 and s2 > 0 and abs(s1 - s2) < 1e-6  # same freq and length here
+    # Priors quick checks
+    assert popularity_prior(None) == 0.0
+    assert popularity_prior(10) > 0.0
+    assert recency_prior(0) == 1.0
+    assert 0.0 < recency_prior(30) < 1.0
+
+    # Cosine similarity
+    assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == 1.0
+    assert abs(cosine_similarity([1.0, 0.0], [0.0, 1.0])) < 1e-12
+    assert cosine_similarity(None, [1.0]) == 0.0
+
+    # NDCG
+    assert abs(ndcg_at_k([3, 2, 1], 3) - 1.0) < 1e-12  # perfect ranking
+    assert ndcg_at_k([], 2) == 0.0
+
+    # MRR
+    assert abs(mrr([0, 1, 0]) - 0.5) < 1e-12  # first relevant at position 2 (0-indexed)
+    assert mrr([0, 0, 0]) == 0.0
