@@ -18,20 +18,20 @@ This plan details the exact steps to implement a single-file, interview-ready se
 
 ## 2) Development Workflow and Tooling (conforms to Cursor rules)
 
-- [ ] Create and use Python 3.12 environment
+- [x] Create and use Python 3.12 environment
   - ```bash
     uv python install 3.12.8
     uv venv
     ```
-- [ ] Install dependencies (dev included) and set up pre-commit
+- [x] Install dependencies (dev included) and set up pre-commit
   - ```bash
     uv sync --group dev
     uv run pre-commit install
     ```
-- [ ] Coding standards
+- [x] Coding standards
   - Python 3.12, type hints everywhere, PEP 8, `ruff` + `black` + `isort(profile=black)`.
   - Pure functions, deterministic results, early returns, small functions.
-- [ ] Validation before each commit
+- [x] Validation before each commit
   - ```bash
     uv run ruff .
     uv run black .
@@ -43,7 +43,7 @@ This plan details the exact steps to implement a single-file, interview-ready se
 
 ## 3) File and API Plan (single-file implementation)
 
-- [ ] Add a new single module: `src/ranker.py` containing everything (scoring, normalization, ranking, metrics). No external deps.
+- [x] Add a new single module: `src/ranker.py` containing everything (scoring, normalization, ranking, metrics). Note: BM25 is provided via `rank_bm25`.
 - **Core data types** (internal only, no runtime dataclasses needed):
   - `Document = dict[str, Any]` with required keys: `id: str`, `tokens: list[str]`; optional: `emb: list[float]`, `clicks: int`, `age_days: int`.
   - `Weights = tuple[float, float, float]` for `(alpha_bm25, beta_semantic, gamma_priors)`.
@@ -52,40 +52,40 @@ This plan details the exact steps to implement a single-file, interview-ready se
 
 ## 4) Function-by-Function Design (signatures and responsibilities)
 
-- [ ] `tokenize(text: str) -> list[str]`
+- [x] `tokenize(text: str) -> list[str]`
   - Lowercase, whitespace split, drop empties. Used for query.
 
-- [ ] `compute_idf(corpus_tokens: list[list[str]]) -> dict[str, float]`
-  - DF-based IDF with standard BM25 variant.
+- [x] `compute_idf(corpus_tokens: list[list[str]]) -> dict[str, float]`
+  - Implemented via `rank_bm25.BM25Okapi` internal precomputation.
 
-- [ ] `compute_avg_doc_len(corpus_tokens: list[list[str]]) -> float`
-  - Mean length over documents.
+- [x] `compute_avg_doc_len(corpus_tokens: list[list[str]]) -> float`
+  - Implemented via `rank_bm25.BM25Okapi` internal precomputation.
 
-- [ ] `bm25_score(query_tokens: list[str], doc_tokens: list[str], idf: dict[str, float], avgdl: float, k1: float = 1.2, b: float = 0.75) -> float`
-  - Standard BM25. Complexity O(|q|).
+- [x] `bm25_score(query_tokens: list[str], doc_tokens: list[str], idf: dict[str, float], avgdl: float, k1: float = 1.2, b: float = 0.75) -> float`
+  - Implemented via `rank_bm25.BM25Okapi.get_scores()`.
 
-- [ ] `cosine_similarity(a: list[float] | None, b: list[float] | None) -> float`
+- [x] `cosine_similarity(a: list[float] | None, b: list[float] | None) -> float`
   - Handle None or mismatched dims by returning 0.0.
 
-- [ ] `popularity_prior(clicks: int | None) -> float`
+- [x] `popularity_prior(clicks: int | None) -> float`
   - `log1p(max(0, clicks))`.
 
-- [ ] `recency_prior(age_days: int | None) -> float`
+- [x] `recency_prior(age_days: int | None) -> float`
   - `exp(-max(0, age_days) / 30.0)`.
 
-- [ ] `z_normalize(values: list[float]) -> list[float]`
+- [x] `z_normalize(values: list[float]) -> list[float]`
   - Per-candidate-set z-norm; if variance is 0 or list empty, return zeros.
 
-- [ ] `blend_scores(bm25: list[float], semantic: list[float], priors: list[float], weights: Weights) -> list[float]`
+- [x] `blend_scores(bm25: list[float], semantic: list[float], priors: list[float], weights: Weights) -> list[float]`
   - Z-normalize components then compute linear blend `alpha*bm25_z + beta*semantic_z + gamma*priors_z`.
 
-- [ ] `top_k(items: list[tuple[str, float]], k: int) -> list[tuple[str, float]]`
+- [x] `top_k(items: list[tuple[str, float]], k: int) -> list[tuple[str, float]]`
   - Use a heap for O(N log k). Apply stable tie-break by `id` asc. Return sorted by score desc.
 
-- [ ] `rank(query: str, documents: list[Document], k: int, weights: Weights = (1.0, 0.5, 0.2)) -> list[tuple[str, float]]`
+- [x] `rank(query: str, documents: list[Document], k: int, weights: Weights = (1.0, 0.5, 0.2)) -> list[tuple[str, float]]`
   - Orchestrates: tokenize query; reuse/precompute corpus `idf` and `avgdl`; compute components and blend; heap-select top-k.
 
-- [ ] Metrics (minimal asserts only in tests)
+- [x] Metrics (minimal asserts only in tests)
   - `ndcg_at_k(gains: list[float], k: int) -> float`
   - `mrr(relevances: list[int]) -> float`
 
@@ -93,16 +93,16 @@ This plan details the exact steps to implement a single-file, interview-ready se
 
 ## 5) Implementation Steps (exact order)
 
-1. [ ] Create `src/ranker.py` with a docstring restating the problem and constraints.
-2. [ ] Implement tokenization and basic utilities (`z_normalize`, `top_k`). Add minimal inline asserts within a guarded `if __name__ == "__main__":` block or in tests only.
-3. [ ] Implement BM25 helpers: `compute_idf`, `compute_avg_doc_len`, `bm25_score` with unit-level asserts.
-4. [ ] Implement semantic similarity `cosine_similarity` with robust edge-case handling.
-5. [ ] Implement priors: `popularity_prior`, `recency_prior`.
-6. [ ] Implement blending `blend_scores` including zero-variance safety.
-7. [ ] Implement `rank` orchestration with deterministic tie-break.
-8. [ ] Implement metrics `ndcg_at_k`, `mrr` with simple tests.
-9. [ ] Add tiny handcrafted tests in `tests/test_ranker.py` covering: obvious lexical match wins; embeddings absent; priors don’t dominate; k edge cases; normalization variance=0; tie-break by id.
-10. [ ] Run format/lint/tests and fix any issues.
+1. [x] Create `src/ranker.py` with a docstring restating the problem and constraints.
+2. [x] Implement tokenization and basic utilities (`z_normalize`, `top_k`). Add minimal inline asserts within a guarded `if __name__ == "__main__":` block or in tests only.
+3. [x] Implement BM25 helpers: `compute_idf`, `compute_avg_doc_len`, `bm25_score` with unit-level asserts. (Handled via `rank_bm25.BM25Okapi` usage inside `rank()`.)
+4. [x] Implement semantic similarity `cosine_similarity` with robust edge-case handling.
+5. [x] Implement priors: `popularity_prior`, `recency_prior`.
+6. [x] Implement blending `blend_scores` including zero-variance safety.
+7. [x] Implement `rank` orchestration with deterministic tie-break.
+8. [x] Implement metrics `ndcg_at_k`, `mrr` with simple tests.
+9. [x] Add tiny handcrafted tests in `tests/test_ranker.py` covering: obvious lexical match wins; embeddings absent; priors don’t dominate; k edge cases; normalization variance=0; tie-break by id.
+10. [x] Run format/lint/tests and fix any issues.
 
 Commands to run:
 
