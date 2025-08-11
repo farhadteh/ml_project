@@ -318,6 +318,16 @@ def rank(
             bm25.get_scores(query_tokens).tolist() if query_tokens else [0.0] * len(documents)
         )
 
+    # Fallback: On very small corpora, BM25 idf can be zero for single-token queries,
+    # yielding all-zero scores even when there is a clear lexical match. When that
+    # happens, use a simple overlap count so lexical evidence can still dominate
+    # when weighted accordingly.
+    if query_tokens and all(score == 0.0 for score in bm25_values):
+        query_set = set(query_tokens)
+        bm25_values = [
+            float(len(query_set.intersection(set(tokens)))) for tokens in corpus_tokens
+        ]
+
     # Semantic: only if both query and document embeddings exist and have same length
     query_emb: Sequence[float] | None = None
     if documents and isinstance(documents[0].get("emb"), list):

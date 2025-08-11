@@ -6,6 +6,7 @@ from rank_bm25 import BM25Okapi
 
 
 def test_bm25_basic_symmetry() -> None:
+    """BM25 scoring is symmetric for bags with the same tokens in different order."""
     corpus = [["blue", "resume"], ["resume", "blue"]]
     bm25 = BM25Okapi(corpus)
     q = ["blue", "resume"]
@@ -14,6 +15,7 @@ def test_bm25_basic_symmetry() -> None:
 
 
 def test_bm25_handles_empty_query_and_docs() -> None:
+    """BM25 returns zero for empty query and for empty docs, guarding edge cases."""
     # Empty query should yield zero BM25 scores
     corpus = [["x"], []]
     bm25 = BM25Okapi(corpus)
