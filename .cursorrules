@@ -1,95 +1,51 @@
+### 1. Core Principles
+Objective: Ship clear, working, testable, and maintainable code. The principles are domain-agnostic (algorithms, APIs, systems).
+Default Stack: Python 3.12 (standard library only). Fallbacks: Java 17 or TypeScript/Node 18.
+Solution Style: A single-file solution composed of small, pure functions with explicit type hints.
+Assumptions: Assume deterministic behavior (no network, no file I/O unless required).
+AI Mindset: Treat the AI as a collaborator. You own the design and correctness; use the AI for boilerplate, alternatives, and testing.
 
-# Purpose
-# - Ship clear, working, testable, maintainable, and performant code under interview constraints.
-# - Be domain-agnostic: applicable to algorithms, data processing, APIs, ML, systems, etc.
+### 2. The 5-Step Interaction Model
+Follow this sequence to structure the entire interview session.
 
-# Default assumptions (unless interviewer specifies otherwise)
-- Language: Python 3.12 preferred (standard library only). If asked: Java 17 or TypeScript/Node 18 with standard libs only.
-- Single-file solution; small, pure functions; explicit types (typing in Python, generics in Java/TS).
-- Deterministic behavior; no network calls; no file I/O unless explicitly required.
-- Minimal test scaffolding inline (asserts or tiny harness). No external dependencies.
+Clarify & Restate: Begin by restating the problem in your own words, covering:
+Inputs & Outputs
+Constraints (e.g., scale N, latency, memory)
+Evaluation Criteria & Edge Cases
+Propose a Plan: Outline a brief plan.
+Example: "My plan is to first build a simple, correct baseline. Then, I'll write tests to cover the main logic and edge cases. Finally, I'll refactor for performance and clarity."
+Code & Test Incrementally:
+Start with a minimal, working "happy path" solution.
+Immediately add 2-3 assert statements for the base case and critical edge cases (e.g., empty/null inputs, singletons).
+Refactor & Optimize:
+Once correctness is established, improve the code.
+Extract helper functions, improve naming, and state the time/space complexity of the core logic.
+Apply optimizations only after establishing a correct baseline.
+Final Review:
+Before finishing, do a quick self-review against a checklist (see below).
+Briefly summarize the trade-offs made and potential next steps if you had more time.
 
-# Interaction model
-- Start by restating the problem with: Inputs, Outputs, Constraints (N, latency/memory), Evaluation criteria, Edge cases.
-- Propose a short plan: baseline → tests → refactor → perf → (optional) enhancements.
-- Ask 1–3 clarifying questions only if ambiguity blocks core design; otherwise state sensible assumptions.
-- Time-box progress and narrate trade-offs. Prefer a correct minimal slice over speculative features.
+### 3. Code Craftsmanship
+Functions: Keep them short (<30 lines), pure (no side effects), and with a single responsibility.
+Clarity: Use clear, consistent names. Write comments only to explain why, not what. Prefer self-documenting code.
+State: Avoid global mutable state. Keep constants near their use. Make randomness explicit and seeded.
+Canonical Structures: Prefer standard function patterns like:
+parse_input(raw) -> structured_data
+validate_input(data) -> None (raises on error)
+solve_core(data) -> result
+format_output(result) -> string
 
-# Coding standards
-- Prefer small, composable, pure functions. One responsibility per function.
-- Use type hints and docstrings (params, returns, raises, edge cases). Document complexity when relevant.
-- Name things clearly and consistently. Avoid hidden state and surprising side effects.
-- Keep constants near use; avoid global mutable state. Make randomness explicit and seeded.
-- Handle errors explicitly; fail fast with clear messages for invalid inputs if required.
+### 4. Performance & Data Structures
+Analyze First: Always state the time and space complexity for your core functions.
+Be Efficient: Avoid re-computation in loops. Use iterators or generators for large data sets instead of materializing them in memory.
+Use the Right Tool:
+Heap (heapq): For top-K, min/max problems.
+Deque (collections.deque): For queue-based algorithms like BFS.
+Set/Dict: For fast membership testing.
+Union-Find: For connectivity problems.
 
-# Generic building blocks to prefer (canonical names)
-- parse_input(raw) -> structured
-- validate_input(data) -> None (raise on invalid)
-- solve_core(data, ...) -> result
-- format_output(result) -> printable/serializable
-- evaluate(pred, truth, ...) -> metrics
-- main() -> glue code (only if required)
-
-# Testing requirements
-- Add immediate sanity tests (asserts) for the smallest happy-path example and 2–3 edge cases.
-- Cover edge cases: empty/None, singletons, duplicates, extremes (min/max), invalid types, ties, and large N.
-- For randomized components, set a fixed seed. For floating-point, compare with tolerances.
-- If time permits, include a tiny property test (e.g., monotonicity, invariants like idempotence).
-
-# Performance checklist
-- State time and space complexity for core functions.
-- Avoid recomputation in loops; precompute shared values; cache when beneficial.
-- Prefer streaming/iterators over materializing whole collections when possible.
-- Use appropriate data structures: heap for top-k, deque for BFS, set/dict for membership, union-find for connectivity.
-- Optimize only hotspots after baselining correctness; measure or reason before micro-optimizing.
-
-# Readability & maintainability
-- Keep functions short (<30–40 lines). Extract helpers early.
-- Write clear comments only where intent isn’t obvious. Prefer self-documenting code.
-- Keep interfaces narrow. Pass data needed, not entire objects, unless justified.
-- Keep the code deterministic and stable (e.g., stable tie-breaking on IDs or indices).
-
-# I/O and environment
-- No external libraries unless explicitly allowed. Prefer standard library equivalents.
-- No file or network I/O unless the task requires it. If required, isolate it behind small adapters.
-- Do not rely on platform-specific behavior. Keep portability in mind.
-
-# Edge-case checklist (generic)
-- Empty inputs, whitespace-only strings, zero-length arrays.
-- Single-element and two-element cases.
-- Duplicates and already-sorted vs reverse-sorted inputs.
-- Negative numbers, zeros, large magnitudes, overflow/underflow risks.
-- Non-ASCII/unicode text, case sensitivity, locale issues.
-- Missing/None values; default values; optional fields.
-- Concurrency not assumed; if required, clarify thread-safety and contention points.
-
-# AI usage guidelines (pair-programmer mindset)
-- Use AI for boilerplate, scaffolding, and quick alternatives. You own correctness and design.
-- Write specific prompts with context, expected inputs/outputs, constraints, and edge cases.
-- Always review AI output like human code: logic, complexity, edge cases, determinism.
-- Ask AI for tests alongside code, then run/verify and trim to essentials.
-
-# Prompt patterns (general)
-- “Restate the problem with inputs/outputs/constraints/evaluation/edge cases. Then outline a 5-step plan.”
-- “Generate a pure {language} solution using only the standard library. Include type hints, docstrings, and 3–5 asserts covering happy path and edge cases.”
-- “Refactor into small, composable functions with clear names and a tiny test harness. State time/space complexity.”
-- “Suggest a heap/streaming-based optimization and show how to test it doesn’t change correctness.”
-
-# Review checklist (before finalizing)
-- API clarity: Names, params, types, and returns are self-explanatory; docstrings present.
-- Correctness: Unit asserts pass, including edge cases; floating-point comparisons use tolerances.
-- Performance: Complexity stated; obvious precomputations/caching applied; no quadratic surprises.
-- Maintainability: Small functions; no duplication; clear separation of concerns; minimal globals.
-- Determinism: Stable ordering; seeded randomness; reproducible results.
-- Summary: Brief note on trade-offs, assumptions, and next steps if more time were available.
-
-# What NOT to do
-- Don’t skip tests. Don’t rely on external deps without permission.
-- Don’t over-engineer abstractions or add premature patterns/frameworks.
-- Don’t leave TODOs without a brief next-step note. Don’t ignore known edge cases.
-- Don’t optimize blindly; prioritize clear, correct code first.
-
-# Language fallbacks
-- Python: typing, dataclasses, heapq, collections, itertools, math, functools; prefer pure functions and asserts.
-- Java: Java 17, small POJOs/records, streams judiciously, JUnit-style tests if requested; avoid heavy frameworks.
-- TypeScript/Node: strict types, functional helpers, no runtime deps; small test harness with node assertions if needed.
+# 5. AI Prompting Patterns
+To Kick-off: "Restate the problem with inputs/outputs/constraints/edge cases. Then outline a 5-step plan."
+For Implementation: "Generate a pure Python solution using  the standard library an in case requred external library alredy insteeld in the project. Include type hints, docstrings, and 3-5 asserts covering the happy path and edge cases."
+For Refinement: "Refactor this into small, composable functions with clear names. State the time/space complexity."
+For Optimization: "Suggest a heap-based optimization for this code and show how to test that it doesn't change correctness."

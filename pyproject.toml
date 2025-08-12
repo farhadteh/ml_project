@@ -19,15 +19,11 @@ dependencies = [
   "pandas>=2.2",
   "scikit-learn>=1.4",
   "xgboost>=2.0",
-  # Deep Learning & NLP
-  "torch>=2.0",  # Installed via CPU index
-  "torchvision>=0.15",  # Required by clip and other vision models
-  "transformers>=4.36",  # Successfully installed
-  "sentence-transformers>=2.2",  # Successfully installed
+  # Deep Learning & NLP (moved heavy deps to optional group 'dl')
   "huggingface_hub>=0.19",
   "safetensors>=0.4",
   "spacy>=3.7",
-  "openai-clip>=1.0",  # Successfully installed
+  # openai-clip depends on torch; kept in optional group
   # Search & Ranking
   "rank-bm25==0.2.2",
   "lightgbm>=4.2",
@@ -55,6 +51,14 @@ dev = [
   "isort>=5.13",
   "mypy>=1.10",
   "ipykernel>=6.29"
+]
+dl = [
+  # Pin versions known to work on macOS x86_64
+  "torch==2.2.2",
+  "torchvision==0.17.2",
+  "openai-clip>=1.0",
+  "transformers>=4.36",
+  "sentence-transformers>=2.2",
 ]
 
 [tool.hatch.build.targets.wheel]

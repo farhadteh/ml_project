@@ -25,9 +25,7 @@ To align with the project's scope and goals, we will adhere to the following con
 
 Pure Functional Approach: The entire solution will be built using functions. No classes will be used, which makes the code simple, testable, and demonstrates clear data flow.
 
-No External Libraries: We will use only the Python 3.12 standard library.
 
-No External Services: The prototype will run entirely in memory, with no database or network calls.
 
 Single File: The complete, runnable solution will be contained in one .py file.
 
