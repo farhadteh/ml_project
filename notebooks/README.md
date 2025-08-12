@@ -5,13 +5,12 @@ This directory contains interactive demonstrations of the search engine prototyp
 ## Files
 
 - **`search_engine_demo.ipynb`** - Interactive Jupyter notebook demonstrating all search engine features
-- **`test_search_engine.py`** - Simple Python script to validate functionality
 
 ## Quick Start
 
 ### Option 1: Run the Test Script
 ```bash
-cd notebooks
+cd examples
 uv run python test_search_engine.py
 ```
 
