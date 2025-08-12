@@ -136,3 +136,15 @@ Common fixes for pre-commit issues:
 - Dev tools live in a dependency group; install them with `uv sync --group dev`.
 - Pre-commit manages its own hook environments; having tools in the venv speeds up runs but is optional.
 - Python path includes `src` for tests (see `pyproject.toml`).
+
+additinal libries:
+
+Install PyTorch CPU-only (Recommended)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install transformers sentence-transformers
+
+Install FAISS (if needed)
+# Install SWIG first
+brew install swig
+# Then install faiss
+pip install faiss-cpu

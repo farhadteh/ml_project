@@ -14,16 +14,37 @@ keywords = ["machine-learning", "template", "uv"]
 
 # Runtime deps (kept lean). Dev tools go in dependency groups.
 dependencies = [
-  "numpy>=1.26",
+  # Core ML and Data Processing
+  "numpy>=1.26,<2.0",  # Pin to 1.x for PyTorch compatibility
   "pandas>=2.2",
   "scikit-learn>=1.4",
+  "xgboost>=2.0",
+  # Deep Learning & NLP
+  "torch>=2.0",  # Installed via CPU index
+  "torchvision>=0.15",  # Required by clip and other vision models
+  "transformers>=4.36",  # Successfully installed
+  "sentence-transformers>=2.2",  # Successfully installed
+  "huggingface_hub>=0.19",
+  "safetensors>=0.4",
+  "spacy>=3.7",
+  "openai-clip>=1.0",  # Successfully installed
+  # Search & Ranking
+  "rank-bm25==0.2.2",
+  "lightgbm>=4.2",
+  # "faiss-cpu>=1.7",  # Requires SWIG for compilation
+  # Web Interface & Visualization
   "matplotlib>=3.8",
   "seaborn>=0.13",
+  "streamlit>=1.28",
+  # System Infrastructure & Utilities
+  "redis>=5.0",
+  "scipy>=1.11",
+  "tqdm>=4.66",
+  # Configuration & Testing
   "PyYAML>=6.0",
   "pytest>=8.2",
   "pre-commit>=3.7",
-  "jupyter>=1.0",
-  "rank-bm25==0.2.2"
+  "jupyter>=1.0"
 ]
 
 [dependency-groups]

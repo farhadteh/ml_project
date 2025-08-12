@@ -1,104 +1,76 @@
-Project brief to give Cursor first: Canva Search/Ranker
-Use this as the first instruction you paste into Cursor so it knows exactly what to build. It contains scope, features, algorithms, evaluation, constraints, and edge cases. No code.
+Part 1: Project Brief
+This section outlines the high-level plan for our search engine prototype.
 
-Project name and goal
+Goal 🎯
+The primary goal is to build a fast, relevant, and intelligent search engine prototype. It should demonstrate modern search relevance techniques and be able to rank creative assets (like templates, photos, or graphics) based on a user's text query.
 
-Build a single-file, interview-ready search and ranking module for Canva assets (templates, elements, photos, fonts).
-Given a text query, return the top-k most relevant items with clear, working, testable, maintainable, and performant code.
-Primary user journeys
+Project Scope
+We will build a self-contained, in-memory search engine within a single Python file. The solution will rely only on Python's standard library, making it easy to run anywhere without installation. It will operate on a small, representative mock dataset of about 10-15 documents. The entire development is designed to be completed within a 1-hour interview timeframe.
 
-Search for a design intent: “wedding invitation minimalist”, “blue resume”, “YouTube thumbnail neon”.
-Filter-like constraints (lightweight): style tags, aspect ratio, content safety.
-Expect diverse, non-duplicative results near the top.
-Inputs and data model (minimal, with optional fields)
+Core Features ✨
+The engine will implement a multi-stage ranking pipeline to ensure high-quality results:
 
-Query: a string.
-Documents (items): at minimum include:
-id: string identifier.
-tokens: lowercase tokens from title/tags/description.
-emb (optional): float vector embedding for semantic similarity, same length across docs if present.
-clicks or saves: non-negative integer for popularity prior.
-age_days: non-negative integer for recency prior.
-Optional fields (for later enhancements, not required for baseline): type (template/photo/font), aspect_ratio, language, creator_quality, safe_flag, color/style tags.
-Outputs
+Keyword Relevance (BM25): The foundation of our ranking. This standard algorithm ranks documents based on how well keywords in the query match the content in document fields like the title and tags. Important fields will be given a higher weight.
 
-A stable, deterministic list of the top-k items, each with a final score (descending). If scores tie, break by id ascending.
-Core features used for ranking (baseline vs nice-to-have)
+Synonym Expansion: To improve recall, the engine will understand that a search for "cv" is also a search for "resume." It will expand queries with related terms, giving a slight preference to the original term.
 
-Baseline features:
-Lexical relevance: BM25 over tokens.
-Semantic similarity: cosine(query_embedding, doc_embedding) when embeddings are available; otherwise 0.
-Priors: popularity (log1p(clicks or saves)) and recency (exp decay on age_days).
-Nice-to-have features (if time permits):
-Aspect ratio match (when query hints at use case like “YouTube thumbnail”).
-Language match or synonym expansion (resume vs CV).
-Quality signals (creator_quality), and safe_search filtering.
-Diversity and dedup via MMR to avoid near-identical results.
-Algorithms and pipeline (what to implement)
+Facet-Based Boosting: To better understand user intent, the engine will recognize special keywords (facets) like size ("A4"), style ("minimal"), or color ("gold") and apply a significant score boost to matching items.
 
-Tokenization: lowercase, whitespace split, filter empties.
-IDF computation: document-frequency-based IDF for BM25 on the toy corpus.
-BM25 scoring: standard BM25 with k1 and b; avgdl precomputed per batch.
-Semantic similarity: cosine similarity; query embedding is optional; keep a stub that returns 0 if not provided.
-Priors:
-Popularity: pop = log1p(clicks or saves).
-Recency: rec = exp(-age_days / 30).
-Score normalization and blending:
-Z-normalize each component per candidate set (BM25, semantic, priors).
-Combine with linear weights: score = α·BM25_z + β·semantic_z + γ·priors_z. Use sensible defaults and keep configurable.
-Candidate generation:
-Minimal version: score all docs with BM25, add semantic if available; take top-k with a heap for efficiency.
-Optional hybrid recall: union of top-N BM25 and top-N semantic before blending.
-Re-ranking (optional enhancement):
-MMR diversification with item-item similarity from embeddings. Apply a near-duplicate threshold to drop dupes.
-Determinism:
-Stable tie-breakers by id. Seed any randomness if introduced (e.g., sampling).
-Evaluation and metrics (to implement with small asserts)
+Popularity Signal: A small score bonus will be added for items with high popularity, ensuring that proven, well-liked assets get a slight edge.
 
-NDCG@K for graded relevance lists.
-MRR for first relevant position.
-Recall@K (optional) for completeness checks on tiny test sets.
-Minimal sanity tests that confirm obvious matches win and metrics behave on hand-crafted examples.
-Performance and complexity targets
+Result Diversity (MMR): To improve the user experience, the final results will be re-ranked using Maximal Marginal Relevance (MMR). This ensures the top results are not just near-duplicates of each other, providing a more varied and useful selection.
 
-Single-file, standard library only; pure functions with type hints and docstrings.
-Complexity:
-BM25 score per doc: O(|q|).
-Scoring all docs: O(N·|q|).
-Top-k selection: O(N log k) via heap; avoid full sort when N is large.
-MMR re-rank (optional): worst-case O(k·N).
-Precompute IDF and avgdl once; cache tokenized query and avoid repeated work.
-Constraints and guardrails
+Constraints 🚧
+To align with the project's scope and goals, we will adhere to the following constraints:
 
-No external dependencies, no network calls, no file I/O.
-Handle edge cases gracefully and deterministically.
-Keep functions small and composable; separate scoring, normalization, ranking, metrics, and reranking.
-Edge cases to handle explicitly
+Pure Functional Approach: The entire solution will be built using functions. No classes will be used, which makes the code simple, testable, and demonstrates clear data flow.
 
-Empty query or whitespace-only query.
-Empty corpus; zero-length documents.
-Missing embeddings; differing embedding dimensions should yield 0 semantic similarity.
-Duplicate documents or near-duplicates (optional MMR/dedup).
-k <= 0, k > N.
-All-zero component variance in normalization (return zeros safely).
-Extremely old or extremely popular items should not overpower topical relevance (keep priors as light modifiers).
-Acceptance criteria (Definition of Done)
+No External Libraries: We will use only the Python 3.12 standard library.
 
-Clear problem restatement at top of file/README.
-Baseline ranker implemented with BM25 + priors; semantic component optional but supported.
-Z-normalization and weighted blending with stable tie-breakers.
-Minimal, deterministic tests for metrics and ranker behavior, including edge cases.
-Performance notes and complexity stated; heap-based top-k used.
-Optional enhancement implemented if time remains (e.g., MMR for diversity).
-Brief summary of trade-offs and next steps for production (inverted index, ANN, A/B testing).
-What not to include (out of scope for the interview baseline)
+No External Services: The prototype will run entirely in memory, with no database or network calls.
 
-Full inverted index or ANN service; use straightforward loops and heaps in-code.
-Personalization, session modeling, or heavyweight model training.
-External services, databases, or large datasets.
-Prompt to give Cursor after pasting this brief
+Single File: The complete, runnable solution will be contained in one .py file.
 
-Create README.md with the above project brief verbatim.
-Then propose a function-by-function design (names, responsibilities, inputs/outputs, docstring summaries) that satisfies this brief. Do not generate code yet; only the design and a tiny test plan per function.
-After I approve the design, generate the single-file implementation with minimal asserts and follow the acceptance criteria.
-After code generation, add a short “Summary, Complexity, Next Steps” section at the bottom of the file.
+Part 2: AI-Assisted Development Plan
+This is a step-by-step guide to building the project using an AI coding assistant (like Cursor or Copilot). Each step includes its goal and a specific, high-leverage prompt to give the AI.
+
+Step 1: Scaffolding and Configuration
+Goal: Create the basic file structure, define the mock data, and set up a central configuration dictionary. This gets the boilerplate code out of the way instantly.
+
+AI Prompt:
+
+"Generate a single Python file named search_engine.py. Inside, create a CONFIG dictionary to hold all search parameters. Also, create a DOCS list containing 10-15 mock documents representing Canva assets, each with an id, title, tags, desc, popularity, size, and style."
+
+Step 2: Preprocessing and Indexing
+Goal: Create a single, pure function that does all the heavy lifting upfront. This function will build our "search context," which includes the inverted index for fast keyword lookups and other pre-computed data. This is the core of our functional approach.
+
+AI Prompt:
+
+"Write a pure Python function create_search_context(docs, config). This function should take the list of documents and the config dictionary. It must return a new dictionary containing all pre-computed data needed for searching, including:
+
+An inverted index for BM25.
+
+Calculated document lengths and average document lengths per field.
+
+TF-IDF vectors for each document's title and tags."
+
+Step 3: Core Scoring Logic
+Goal: Implement the main BM25 scoring algorithm. This function will be the heart of our relevance ranking.
+
+AI Prompt:
+
+"Generate a pure Python function calculate_bm25_scores(query_terms, search_context, config). It should implement the BM25 algorithm. Use the pre-computed inverted index and document lengths from the search_context, and the k1, b, and field_boosts parameters from the config dictionary."
+
+Step 4: Post-Ranking for Diversity
+Goal: Implement the MMR algorithm to re-rank the top results, ensuring they are diverse and not repetitive.
+
+AI Prompt:
+
+"Generate a pure Python function mmr_select(candidates, k, search_context, config). This function should implement Maximal Marginal Relevance. It will take a sorted list of candidate tuples (doc_id, score) and the number of results k. It should use the pre-computed TF-IDF vectors from the search_context to calculate cosine similarity for the redundancy check."
+
+Step 5: Orchestration and Testing
+Goal: Create the main search function that ties all the pieces together and write a set of tests to verify that the entire pipeline works as expected.
+
+AI Prompt:
+
+"Finally, create the main orchestrator function search(query, search_context, config). This function should call the helper functions in sequence: process the query, calculate scores, and then run MMR post-ranking. Also, generate a run_tests function that includes at least 3-4 assert statements to validate the end-to-end search logic for key queries, such as a basic keyword search, a synonym search, and a query that demonstrates MMR."

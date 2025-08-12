@@ -1,8 +1,35 @@
+# Core ML and Data Processing
 numpy
 pandas
 scikit-learn
+xgboost
+
+# Deep Learning & NLP
+torch  # Successfully installed via CPU index
+torchvision  # Required by clip and other vision models
+transformers  # Successfully installed
+sentence-transformers  # Successfully installed
+huggingface_hub
+safetensors
+spacy
+openai-clip  # Successfully installed
+
+# Search & Ranking
+rank-bm25
+lightgbm
+# faiss-cpu  # Requires SWIG for compilation
+
+# Web Interface & Visualization
 matplotlib
 seaborn
+streamlit
+
+# System Infrastructure & Utilities
+redis
+scipy
+tqdm
+
+# Configuration & Testing
 PyYAML
 pytest
 pre-commit
