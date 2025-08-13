@@ -126,10 +126,10 @@ uv run pytest -q
 
 ## 11) Milestones and Sign-off
 
-1. [] Scaffold `search_engine.py` with mock data generators.
-2. [] Implement `generate_features` (BM25, embeddings, popularity) and compute `groups`.
-3. [] Train `XGBRanker` via `xgboost.train` using `DMatrix` with groups.
-4. [] Implement `rank_templates` and example run.
-5. [] Add minimal tests; format/lint; ensure all checks green.
+1. [x] Scaffold `search_engine.py` with mock data generators.
+2. [x] Implement `generate_features` (BM25, embeddings, popularity) and compute `groups`.
+3. [x] Train `XGBRanker` via `xgboost.train` using `DMatrix` with groups.
+4. [x] Implement `rank_templates` and example run.
+5. [x] Add minimal tests; format/lint; ensure all checks green.
 
 For each milestone, ensure code is type-annotated, deterministic, formatted, linted, and tests pass.
