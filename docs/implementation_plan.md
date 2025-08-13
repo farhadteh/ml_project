@@ -1,112 +1,92 @@
-### Single-File Search Engine — Step-by-Step Implementation Plan (aligned with `docs/project_plan.md`)
+### Single-File Search-Ranking Prototype — Implementation Plan (aligned with `docs/project_plan.md`)
 
-This plan details the exact steps to implement a self-contained search engine prototype in one Python file `search_engine.py`, implementing BM25 keyword relevance, synonym expansion, facet-based boosting, a popularity signal, and MMR re-ranking. It follows Cursor workspace rules and is structured as a checklist.
+This plan describes a self-contained pipeline in one Python file `search_engine.py` that builds mock data,
+generates hybrid features (BM25, embedding similarity, popularity), trains an `XGBRanker`, and exposes a
+`rank_templates()` function. It follows the repo rules and is structured as a concise checklist.
 
 ---
 
 ## 1) Scope, Inputs/Outputs, and Constraints
 
-- **Goal**: Rank creative assets by a user text query; demonstrate a modern, multi-stage ranking pipeline.
+- **Goal**: Rank template-like assets for a user query using a hybrid (keyword + semantic + business) model.
 - **Inputs**:
   - `query: str`
-  - `docs: list[dict]` with fields: `id: str`, `title: str`, `tags: list[str]`, `desc: str`, `popularity: int`, optional facets like `size: str`, `style: str`, `color: str`.
-  - `k: int` results to return (default 10).
-- **Outputs**: Deterministic top-k list of `(doc_id, score)` after MMR, sorted by score desc, ties by `id` asc.
-- **Constraints**: Single `.py` file, Python 3.12, standard library only, pure functions (no classes), deterministic, no I/O/network. Target complexities: BM25 scoring O(N·|q|); MMR O(k·N) with cosine sims over sparse TF-IDF.
+  - `template_db: list[dict]` with keys: `template_id: str`, `title: str`, `description: str`,
+    `popularity_score: int`
+  - `k: int` top results to return (default 10)
+- **Outputs**: Top-k list of `(template_id, score)`, sorted by predicted relevance desc (stable tie by id).
+- **Constraints**: Single `.py` file, Python 3.12. Use `rank-bm25`, `sentence-transformers`, and `xgboost`.
+  Pure functions where possible; deterministic behavior; do not require external I/O beyond library usage.
 
 ---
 
-## 2) Configuration and Mock Data
+## 2) Mock Data Construction
 
-- **File scaffold**: `search_engine.py` contains:
-  - `CONFIG: dict` with:
-    - `k1: float`, `b: float` per field or global; `field_boosts: dict = {"title": 2.0, "tags": 1.5, "desc": 1.0}`
-    - `synonyms: dict[str, list[str]]` (e.g., `{"cv": ["resume"], "photo": ["image", "picture"]}`)
-    - `syn_weight: float` (0 < syn_weight < 1) to prefer original terms
-    - `facets: dict[str, dict]` with keys like `size`, `style`, `color` and allowed values
-    - `facet_boost: float` large positive boost per matched facet value
-    - `pop_weight: float` small multiplier for popularity normalization
-    - `mmr_lambda: float` in [0,1] for relevance vs diversity trade-off
-  - `DOCS: list[dict]` of 10–15 mock assets with fields described above.
+- Implement generators inside `search_engine.py`:
+  - `make_template_db() -> list[dict]`: 10–15 dictionaries with the required keys.
+  - `make_search_logs(template_db) -> list[dict]`: training rows with keys `query`, `template_id`, `relevance`.
+    For each unique query, create 4–5 rows: one relevance 3 (perfect match), one 2 (good semantic match),
+    and remaining 1 or 0 (poor matches).
 
 ---
 
-## 3) Search Context (precompute once)
+## 3) Feature Generation
 
-- `create_search_context(docs, config) -> dict` builds and returns:
-  - `inv_index: dict[field][term] -> list[(doc_id, tf)]`
-  - `doc_len: dict[field][doc_id] -> int`, `avgdl: dict[field] -> float`
-  - `df: dict[field][term] -> int`, `idf: dict[field][term] -> float` (BM25-friendly)
-  - `tfidf_vectors: dict[doc_id] -> dict[token, weight]` over `title+tags` for cosine sims (MMR)
-  - `popularity: dict[doc_id] -> float` normalized into [0,1]
-  - `facets_index: dict[facet_name][value] -> set[doc_id]` (for quick facet matching)
-
----
-
-## 4) Functions and Responsibilities
-
-- `tokenize(text: str) -> list[str]`
-  - Lowercase, split on non-alphanumerics; drop empties.
-- `expand_with_synonyms(tokens: list[str], synonyms: dict[str, list[str]], syn_weight: float) -> list[tuple[str, float]]`
-  - Return weighted query terms: originals with weight 1.0, synonyms with `syn_weight`.
-- `detect_facets(tokens: list[str], config: dict) -> tuple[dict[str, str], list[str]]`
-  - Extract `(facet_name -> value)` found in tokens; return remaining non-facet tokens.
-- `create_search_context(docs: list[dict], config: dict) -> dict`
-  - Build inverted index, df/idf, doc lengths, avgdl, tf-idf vectors, popularity normalization, facets index.
-- `calculate_bm25_scores(query_terms: list[tuple[str, float]], ctx: dict, config: dict) -> dict[str, float]`
-  - BM25 over fields with `field_boosts`; incorporate per-term query weights.
-- `apply_facet_boosts(scores: dict[str, float], facet_matches: dict[str, str], ctx: dict, config: dict) -> dict[str, float]`
-  - Add `facet_boost` to docs matching all query facets; partial matches receive proportionate boosts.
-- `apply_popularity_bonus(scores: dict[str, float], popularity: dict[str, float], pop_weight: float) -> dict[str, float]`
-  - Add a small `pop_weight * popularity[doc]` to favor well-liked items.
-- `cosine_similarity_sparse(a: dict[str, float], b: dict[str, float]) -> float`
-  - Sparse-dict cosine; 0.0 if empty.
-- `mmr_select(candidates: list[tuple[str, float]], k: int, ctx: dict, config: dict) -> list[tuple[str, float]]`
-  - Standard MMR using `tfidf_vectors` and `mmr_lambda`; greedy selection until k.
-- `search(query: str, ctx: dict, config: dict, k: int = 10) -> list[tuple[str, float]]`
-  - Orchestrate: tokenize → facet detection → synonym expansion → BM25 → facet boosts → popularity → top candidates → MMR.
-- `run_tests() -> None`
-  - Minimal asserts for keyword match, synonym expansion, facet boosting, popularity nudge, and MMR diversity.
+- Provide a single entry point:
+  - `generate_features(search_logs, template_db) -> tuple[X, y, groups]`
+- Implementation details:
+  - Convert inputs to pandas DataFrames; left-join logs with templates so each row is a (query, template) pair.
+  - **BM25 (keyword feature)**: Use `rank-bm25` to compute keyword relevance per (query, description/title).
+    Store as `bm25_score`.
+  - **Embeddings (semantic feature)**: Using `sentence-transformers`, encode unique queries and template
+    descriptions; compute cosine similarity for each pair, stored as `embedding_similarity`.
+  - **Popularity (business feature)**: Normalize `popularity_score` into [0, 1] as `popularity_norm`.
+  - Return:
+    - `X`: DataFrame with columns `[bm25_score, embedding_similarity, popularity_norm]`
+    - `y`: Series of `relevance`
+    - `groups`: array of group sizes per query (e.g., `[4, 5, ...]`) for ranking training
 
 ---
 
-## 5) Implementation Steps (exact order)
+## 4) Model Training and Ranking
 
-1. [x] Create `search_engine.py` with `CONFIG` and `DOCS` scaffold from the brief.
-2. [x] Implement `tokenize`, `expand_with_synonyms`, and `detect_facets` with unit-level asserts.
-3. [x] Implement `create_search_context` (inverted index, df/idf, lengths, avgdl, tf-idf vectors, popularity normalization, facets index).
-4. [x] Implement `calculate_bm25_scores` supporting per-field boosts and weighted query terms.
-5. [x] Implement `apply_facet_boosts` and `apply_popularity_bonus`.
-6. [x] Implement `cosine_similarity_sparse` and `mmr_select`.
-7. [x] Implement `search` orchestrator and `run_tests` with at least 3–4 asserts covering core scenarios.
-8. [x] Format/lint and run tests:
-
-```bash
-uv run ruff .
-uv run black .
-uv run pytest -q
-```
+- **Training**
+  - Build an `xgboost.DMatrix` with features `X`, labels `y`, and `group=groups`.
+  - Train via `xgboost.train` with `objective='rank:ndcg'`.
+- **Inference**
+  - `rank_templates(query, model, template_db) -> list[tuple[str, float]]`:
+    - Construct features for the new `query` against all templates using the identical pipeline
+      (BM25, embedding similarity, popularity normalization).
+    - Predict with the trained model; sort descending by score; return `(template_id, score)`.
 
 ---
 
-## 6) Edge Cases to Handle Explicitly
+## 5) Orchestration and Example Run
 
-- **Empty query**: return empty list if `k <= 0`; otherwise rely on popularity-only ordering (deterministic tie-break by `id`).
-- **Empty corpus**: return empty results.
-- **Unknown facets/values**: ignore silently; proceed with remaining tokens.
-- **All OOV tokens**: produce zero BM25; only facet/popularity can move scores.
-- **k bounds**: clamp to `[0, N]`.
-- **Ties**: stable tie-break by `id` ascending.
+- Add `if __name__ == "__main__":` to:
+  1) Build `template_db` and `search_logs`.
+  2) Call `generate_features` to get `X, y, groups`.
+  3) Train the model.
+  4) Call `rank_templates("professional resume", model, template_db)`.
+  5) Print the ranked template titles to verify relevance.
 
 ---
 
-## 7) Testing Plan (deterministic, minimal)
+## 6) Edge Cases
 
-- **Keyword**: a doc with `title` or `tags` containing query tokens should win over non-matching docs.
-- **Synonyms**: query "cv" should retrieve docs with "resume" via expansion; originals preferred if both present.
-- **Facets**: query with `"A4 minimal"` should boost items with `size="A4"` and `style="minimal"`.
-- **Popularity**: more popular but less relevant items get a small nudge, not overpowering BM25.
-- **MMR**: ensure top-k are not near-duplicates by title/tags; diversity increases when `mmr_lambda` < 1.
+- Empty `template_db` or `search_logs` → return empty results or raise a clear error during training.
+- Queries with no lexical overlap but semantic match → embeddings should still yield signal.
+- Stable tie-breaking by `template_id` when scores are equal.
+- Clamp `k` to `[0, N]`.
+
+---
+
+## 7) Testing (minimal, deterministic)
+
+- Add simple asserts in a `run_tests()` helper:
+  - A perfect lexical/semantic match receives higher predictions than unrelated templates.
+  - A good semantic match (with little lexical overlap) still scores meaningfully above non-matches.
+  - Popularity provides a small but non-dominant nudge.
 
 Example test invocation:
 
@@ -116,43 +96,40 @@ uv run pytest -q
 
 ---
 
-## 8) Performance and Determinism Notes
+## 8) Performance Notes
 
-- **Complexity**: BM25 O(N·|q|); MMR selection O(k·N) with sparse cosine; overall acceptable for N≲1000 in interview settings.
-- **Precompute**: All per-corpus stats in `create_search_context`; query-time work is lightweight.
-- **Determinism**: No randomness; explicit tie-breaking by `id`.
+- BM25 computation per (query, template) is lightweight for small N.
+- Embedding computation amortized by encoding unique queries and template descriptions once.
+- Training time is small for the mock dataset; prediction is O(N) per query.
 
 ---
 
 ## 9) Acceptance Criteria (Definition of Done)
 
-- [x] Single file `search_engine.py` with `CONFIG` and `DOCS` mock data.
-- [x] BM25 with per-field boosts; synonym expansion with lower weight for synonyms.
-- [x] Facet-based boosts and a small popularity bonus.
-- [x] MMR post-ranking using cosine similarity over TF-IDF (title+tags).
-- [x] Orchestrator `search()` and `run_tests()` with 3–4 asserts covering the above.
-- [x] Deterministic results with stable tie-break; no external dependencies.
-- [x] Lint/format/tests pass locally.
+- [] One file `search_engine.py` containing: mock data builders, `generate_features`, model training, and
+  `rank_templates`.
+- [] Features include: BM25 score, embedding cosine similarity, and normalized popularity.
+- [] Model trained with `objective='rank:ndcg'` and group-wise ranking via `xgboost.DMatrix`.
+- [] Example query returns a reasonable ranking (e.g., “Modern CV Design” ranks high for “professional resume”).
+- [] Lint/format/tests pass locally.
 
 ---
 
-## 10) Conformance to Cursor Rules (quick checklist)
+## 10) Conformance to Repo Rules (quick checklist)
 
-- [x] Python 3.12, standard library only, type hints, pure functions, early returns.
-- [x] Small, composable functions; explicit error handling where appropriate.
-- [x] No I/O or network; deterministic behavior.
-- [x] Tests include happy path and edge cases.
-- [x] Lint/format with `uv run ruff .` and `uv run black .`; imports sorted.
+- [] Python 3.12; type hints; small, pure functions.
+- [] Keep imports organized; run `uv run ruff .` and `uv run black .`.
+- [] Deterministic behavior with stable tie-breaking.
+- [] Minimal asserts cover happy path and key edge cases.
 
 ---
 
 ## 11) Milestones and Sign-off
 
-1. [x] Scaffold `search_engine.py` with config and mock data.
-2. [x] Indexing and context creation complete; unit checks pass.
-3. [x] BM25 scoring with field boosts verified.
-4. [x] Synonyms, facets, and popularity integrated and validated.
-5. [x] MMR implemented; end-to-end tests pass.
-6. [x] Cleanup, documentation, and final formatting; all checks green.
+1. [] Scaffold `search_engine.py` with mock data generators.
+2. [] Implement `generate_features` (BM25, embeddings, popularity) and compute `groups`.
+3. [] Train `XGBRanker` via `xgboost.train` using `DMatrix` with groups.
+4. [] Implement `rank_templates` and example run.
+5. [] Add minimal tests; format/lint; ensure all checks green.
 
-For each milestone, ensure: code is type-annotated, deterministic, formatted, linted, and tests pass.
+For each milestone, ensure code is type-annotated, deterministic, formatted, linted, and tests pass.
