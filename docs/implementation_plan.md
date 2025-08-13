@@ -106,21 +106,21 @@ uv run pytest -q
 
 ## 9) Acceptance Criteria (Definition of Done)
 
-- [] One file `search_engine.py` containing: mock data builders, `generate_features`, model training, and
+- [x] One file `search_engine.py` containing: mock data builders, `generate_features`, model training, and
   `rank_templates`.
-- [] Features include: BM25 score, embedding cosine similarity, and normalized popularity.
-- [] Model trained with `objective='rank:ndcg'` and group-wise ranking via `xgboost.DMatrix`.
-- [] Example query returns a reasonable ranking (e.g., “Modern CV Design” ranks high for “professional resume”).
-- [] Lint/format/tests pass locally.
+- [x] Features include: BM25 score, embedding cosine similarity, and normalized popularity.
+- [x] Model trained with `objective='rank:ndcg'` and group-wise ranking via `xgboost.DMatrix`.
+- [x] Example query returns a reasonable ranking (e.g., "Modern CV Design" ranks high for "professional resume").
+- [x] Lint/format/tests pass locally.
 
 ---
 
 ## 10) Conformance to Repo Rules (quick checklist)
 
-- [] Python 3.12; type hints; small, pure functions.
-- [] Keep imports organized; run `uv run ruff .` and `uv run black .`.
-- [] Deterministic behavior with stable tie-breaking.
-- [] Minimal asserts cover happy path and key edge cases.
+- [x] Python 3.12; type hints; small, pure functions.
+- [x] Keep imports organized; run `uv run ruff .` and `uv run black .`.
+- [x] Deterministic behavior with stable tie-breaking.
+- [x] Minimal asserts cover happy path and key edge cases.
 
 ---
 

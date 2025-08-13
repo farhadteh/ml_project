@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -278,7 +279,12 @@ def generate_features(
 
     popularity_norm = []
     for _, row in merged_df.iterrows():
-        norm_score = (row["popularity_score"] - min_popularity) / (max_popularity - min_popularity)
+        if max_popularity == min_popularity:
+            norm_score = 0.5  # All equal, use middle value
+        else:
+            norm_score = (row["popularity_score"] - min_popularity) / (
+                max_popularity - min_popularity
+            )
         popularity_norm.append(norm_score)
 
     merged_df["popularity_norm"] = popularity_norm
@@ -293,8 +299,125 @@ def generate_features(
     return X, y, groups
 
 
+def train_ranking_model(X: pd.DataFrame, y: pd.Series, groups: list[int]) -> xgb.Booster:
+    """
+    Train XGBRanker model for template ranking.
+
+    Args:
+        X: Feature matrix with columns [bm25_score, embedding_similarity, popularity_norm]
+        y: Relevance scores (0-3)
+        groups: Group sizes for each unique query
+
+    Returns:
+        Trained XGBoost model
+    """
+    # Create DMatrix with group information for ranking
+    dtrain = xgb.DMatrix(X, label=y)
+    dtrain.set_group(groups)
+
+    # XGBoost parameters for ranking
+    params = {
+        "objective": "rank:ndcg",
+        "eta": 0.1,  # Learning rate
+        "max_depth": 6,  # Tree depth
+        "eval_metric": "ndcg@5",  # Evaluation metric
+        "verbosity": 0,  # Suppress verbose output
+    }
+
+    # Train the model
+    num_rounds = 100
+    model = xgb.train(params, dtrain, num_rounds)
+
+    return model
+
+
+def rank_templates(
+    query: str, model: xgb.Booster, template_db: list[dict[str, Any]], k: int = 10
+) -> list[tuple[str, float]]:
+    """
+    Rank templates for a given query using the trained model.
+
+    Args:
+        query: Search query string
+        model: Trained XGBoost ranking model
+        template_db: List of template dictionaries
+        k: Number of top results to return
+
+    Returns:
+        List of (template_id, score) tuples, sorted by score descending
+    """
+    if not template_db:
+        return []
+
+    # Clamp k to valid range
+    k = max(0, min(k, len(template_db)))
+    if k == 0:
+        return []
+
+    # Note: template_db is already a list of dicts, no need to convert to DataFrame
+
+    # 1. Calculate BM25 scores
+    corpus_texts = []
+    for template in template_db:
+        corpus_texts.append(f"{template['title']} {template['description']}")
+
+    tokenized_corpus = [doc.lower().split() for doc in corpus_texts]
+    bm25 = BM25Okapi(tokenized_corpus)
+
+    query_tokens = query.lower().split()
+    bm25_scores = bm25.get_scores(query_tokens)
+
+    # 2. Calculate embedding similarities
+    model_emb = SentenceTransformer("all-MiniLM-L6-v2")
+
+    # Encode query and template texts
+    query_embedding = model_emb.encode([query])
+    template_texts = [f"{t['title']} {t['description']}" for t in template_db]
+    template_embeddings = model_emb.encode(template_texts)
+
+    # Calculate cosine similarities
+    similarities = cosine_similarity(query_embedding, template_embeddings)[0]
+
+    # 3. Normalize popularity scores
+    popularity_scores = [t["popularity_score"] for t in template_db]
+    max_popularity = max(popularity_scores)
+    min_popularity = min(popularity_scores)
+
+    if max_popularity == min_popularity:
+        popularity_norm = [0.5] * len(template_db)  # All equal, use middle value
+    else:
+        popularity_norm = [
+            (score - min_popularity) / (max_popularity - min_popularity)
+            for score in popularity_scores
+        ]
+
+    # 4. Create feature matrix
+    X_rank = pd.DataFrame(
+        {
+            "bm25_score": bm25_scores,
+            "embedding_similarity": similarities,
+            "popularity_norm": popularity_norm,
+        }
+    )
+
+    # 5. Predict scores using the trained model
+    dtest = xgb.DMatrix(X_rank)
+    predicted_scores = model.predict(dtest)
+
+    # 6. Create results with template_id and scores
+    results = []
+    for i, template in enumerate(template_db):
+        results.append((template["template_id"], float(predicted_scores[i])))
+
+    # 7. Sort by score descending, with stable tie-breaking by template_id
+    results.sort(key=lambda x: (-x[1], x[0]))
+
+    # 8. Return top-k results
+    return results[:k]
+
+
 def run_tests() -> None:
-    """Basic tests for the feature generation pipeline."""
+    """Basic tests for the complete ranking pipeline."""
     # Test mock data generation
     template_db = make_template_db()
     search_logs = make_search_logs(template_db)
@@ -315,6 +438,38 @@ def run_tests() -> None:
     assert (X["popularity_norm"] >= 0).all() and (
         X["popularity_norm"] <= 1
     ).all(), "Popularity should be normalized [0,1]"
+
+    # Test model training
+    model = train_ranking_model(X, y, groups)
+    assert model is not None, "Model should be trained successfully"
+
+    # Test ranking functionality
+    test_queries = ["professional resume", "birthday invite", "business card"]
+
+    for query in test_queries:
+        results = rank_templates(query, model, template_db, k=5)
+
+        assert len(results) <= 5, f"Should return at most 5 results for '{query}'"
+        assert all(isinstance(r[0], str) for r in results), "Template IDs should be strings"
+        assert all(isinstance(r[1], float) for r in results), "Scores should be floats"
+
+        # Check ordering (scores should be descending)
+        scores = [r[1] for r in results]
+        assert scores == sorted(
+            scores, reverse=True
+        ), f"Results should be sorted by score desc for '{query}'"
+
+    # Test edge cases
+    empty_results = rank_templates("", model, [], k=5)
+    assert empty_results == [], "Empty template_db should return empty results"
+
+    zero_k_results = rank_templates("test", model, template_db, k=0)
+    assert zero_k_results == [], "k=0 should return empty results"
+
+    # Test semantic matching: "cv" should rank "resume" highly
+    cv_results = rank_templates("cv", model, template_db, k=3)
+    cv_template_ids = [r[0] for r in cv_results]
+    assert "t002" in cv_template_ids, "Resume template should rank highly for 'cv' query"
 
     print("✓ All tests passed!")
 
@@ -338,3 +493,27 @@ if __name__ == "__main__":
     print(f"Groups for ranking: {groups}")
     print("\nFeature statistics:")
     print(X.describe())
+
+    print("\n=== Model Training ===")
+    model = train_ranking_model(X, y, groups)
+    print("✓ XGBRanker model trained successfully!")
+
+    print("\n=== Ranking Demonstration ===")
+    test_queries = [
+        "professional resume",
+        "birthday invite",
+        "business card",
+        "wedding invitation",
+        "social media post",
+    ]
+
+    for query in test_queries:
+        print(f"\nQuery: '{query}'")
+        results = rank_templates(query, model, template_db, k=3)
+
+        for i, (template_id, score) in enumerate(results, 1):
+            # Find template details
+            template = next(t for t in template_db if t["template_id"] == template_id)
+            print(f"  {i}. [{template_id}] {score:.3f} - {template['title']}")
+
+    print("\n🎉 Pipeline execution completed successfully!")
