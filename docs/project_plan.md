@@ -1,117 +1,104 @@
-Part 1: Project Brief
-This section outlines the high-level plan for our rapid search engine prototype.
+Project Plan: Gender Diversity Re-ranking (Revised)
+1) Problem Definition and Success Criteria
+Goal: Re-rank a list of 100 search results to produce a top-10 list with improved gender diversity. The goal is to demonstrate proficiency in using AI for a rapid, time-boxed coding project.
 
-Goal 🎯
-To build a functional, feature-based search ranking model in a single Python script within one hour. The model will rank design templates based on a combination of keyword relevance, semantic similarity, and business metrics.
+Scope: Implement three distinct re-ranking strategies within a single Python script. The script will take an initial ranked list of 100 results (with relevance scores) and a gender tag for each item, then output three new top-10 lists. The entire development is designed to be completed within a 60-minute timeframe.
 
-Project Scope
-We will implement an end-to-end pipeline that includes: mock data generation, feature creation, model training with XGBRanker, and a search function to rank results for a given query.
 
-Core Features ✨
+Non-goals: Building a new ranking model from scratch, using external libraries beyond standard data manipulation, or training on a large dataset.
 
-Mock Data Generation: Create a realistic but simple dataset of templates and user search interactions.
+Target Metric:
 
-Hybrid Feature Engineering: Generate features combining BM25 (keyword), sentence embeddings (semantic), and business logic (popularity).
+Diversity Score: The count of the minority gender in the top 10. The goal is to achieve a count of at least 3, compared to the baseline.
 
-Gradient-Boosted Ranking: Train and use an XGBRanker model to predict relevance scores.
+2) Architecture and Data Plan
 
-Constraints 🚧
-To align with the project's rapid, AI-assisted nature, we will adhere to the following constraints:
+Components: A single Python script containing functions for data generation, each of the three re-ranking strategies, and a main execution block to run the pipeline.
 
-AI-Driven Development: Each step is designed as a clear instruction for an AI coding assistant to generate the necessary code blocks.
+Data Source: A mock dataset will be generated in-memory.
 
-Single File: The complete, runnable solution will be contained in one .py file for simplicity.
+Data Schema Sketch:
 
-Step 1: Scaffolding and Mock Data Construction
-Goal: Generate all necessary mock data structures to simulate a real-world template library and user search logs. This step should be almost entirely handled by the AI assistant based on specific instructions.
+Python
 
-Action Plan (Instructions for AI Assistant):
+# A single search result item
+item = {
+    'item_id': str,           # Unique identifier
+    'relevance_score': float, # Original relevance from base ranker (0-1)
+    'gender': str,            # 'Male', 'Female', or 'Neutral'
+}
+Data Generation: Create a function generate_mock_data() that produces a list of 100 such dictionaries. The
 
-Create Template Database: Generate a list of 10-15 Python dictionaries representing our design templates. Each dictionary must have the keys: template_id (e.g., t001), title (e.g., "Modern Business Card"), description (a short sentence), and popularity_score (a random integer between 100 and 5000).
+relevance_score should be high for the initial top results and decrease, and the gender distribution should be imbalanced in the original top-10 (e.g., 8 Male, 2 Female), creating a clear problem to solve.
 
-Construct Training Search Logs: This is the most critical part. Create a list of dictionaries representing user search interactions. This list will be used to train our model. Each dictionary should have three keys:
+3) Re-ranking Options with Trade-offs
+This section outlines the three proposed re-ranking strategies, from simple to more complex.
 
-query: The text the user searched for (e.g., "professional resume").
+Option A: Simple Interleaving (Balanced)
 
-template_id: The ID of a template that was shown for that query.
+Description: A straightforward approach that interleaves results from different gender groups. For example, it might take the highest-relevance result from the majority group, then the highest-relevance from the minority group, and so on.
 
-relevance: A score indicating how relevant that template was. This is the target we will predict.
+Trade-offs: Very simple to implement and guarantees diversity. However, it can significantly drop the relevance of the first few results if the minority group's top items have low relevance scores.
 
-How to create realistic relevance scores: For each unique query (e.g., "birthday invite"), create 4-5 entries.
+Option B: Boosted Demotion (Relevance-First)
 
-Assign a relevance of 3 to one template that is a perfect match (e.g., a template titled "Kids Birthday Party Invite").
+Description: Sort the top 100 results by a modified score: new_score = original_relevance - alpha * demotion_factor. The demotion_factor is applied to items from the over-represented gender group once a certain threshold (e.g., more than 5 results of that gender) is reached in the re-ranked list. alpha is a hyperparameter to control the strength of the demotion.
 
-Assign a relevance of 2 to one template that is a good semantic match (e.g., "Fun Party Announcement").
+Trade-offs: This method is more sophisticated than interleaving and maintains a stronger link to the original relevance scores. It allows for a direct trade-off between diversity and relevance by tuning the alpha value.
 
-Assign a relevance of 1 or 0 to the remaining templates that are poor matches (e.g., "Corporate Business Card"). This teaches the model what not to rank highly.
+Option C: Proportional Re-ranking (Group-Aware)
 
-Step 2: Feature Generation
-Goal: Create a single, pure function that takes the raw data from Step 1 and generates a complete feature matrix (X) and a relevance scores vector (y). This function is the core of our data processing pipeline.
+Description: This approach fills the top 10 slots proportionally. For example, it would take the top 5 most relevant items from the male group and the top 5 from the female group, and then merge them.
 
-Action Plan (Instructions for AI Assistant):
+Trade-offs: This method provides strong control over the final gender distribution but can be less dynamic than the boosting approach. The final ranking might feel less natural because it's a fixed quota rather than a continuous score adjustment.
 
-Define the Feature Generation Function: Create a function generate_features(search_logs, template_db).
+4) Evaluation Plan
+Metrics:
 
-Merge Data: Inside the function, convert the search_logs and template_db into pandas DataFrames and merge them so each row represents one (query, template) pair with all its associated data.
+Diversity Score: A helper function will be created to count the number of items from the minority gender in the top 10.
 
-Create Keyword Feature (BM25): For each unique query, calculate the BM25 score for all templates against that query. Add this score as a new column named bm25_score.
+Sanity Checks:
 
-Create Semantic Feature (Embeddings):
+Confirm that the re-ranked lists for Options A, B, and C all have a better diversity score than the baseline.
 
-Use the sentence-transformers library to encode all unique queries and all template descriptions into embeddings.
+The goal is to demonstrate that each method successfully improves the diversity metric.
 
-For each (query, template) pair in your DataFrame, calculate the cosine similarity between their respective embeddings.
+5) Implementation Plan (60 minutes timebox)
+Milestone 1 (15 min): Setup and Mock Data
 
-Add this similarity score as a new column named embedding_similarity.
+Acceptance Criteria: Single .py file created. generate_mock_data() function is implemented and produces a list of 100 items with imbalanced gender in the top-10. A baseline diversity score is calculated and printed.
 
-Assemble Final Feature Matrix: The function should return three objects:
+Milestone 2 (15 min): Implement Re-ranking Strategies A and B
 
-X: A DataFrame containing only the feature columns (bm25_score, embedding_similarity, popularity_score).
+Acceptance Criteria: rerank_interleave() and rerank_boosted_demotion() functions are implemented. Both functions take the list of 100 results and return a new top-10 list.
 
-y: A Series containing the relevance scores.
+Milestone 3 (15 min): Implement Re-ranking Strategy C and Evaluation
 
-groups: A list or array indicating the size of each query group. For example, if the first query has 4 associated templates and the second has 5, the groups array would be [4, 5, ...]. This is essential for XGBRanker.
+Acceptance Criteria: rerank_proportional() function is implemented. A single evaluation function evaluate_diversity_score() is created to compute the diversity count for any given top-10 list.
 
-Step 3: Model Training and Ranking Logic
-Goal: Train the XGBRanker model on the generated features and create a simple function that uses the trained model to rank templates for a new query.
+Milestone 4 (15 min): Main Orchestration and Polish
 
-Action Plan (Instructions for AI Assistant):
+Acceptance Criteria: The main block calls all functions, prints the results for the baseline and all three strategies, and provides a concise summary of the trade-offs. The code is well-commented and clean.
 
-Train the XGBRanker Model:
+6) Risks and Fallbacks
+Risk: Time runs out before all three strategies are implemented.
 
-Create an XGBRanker model object with objective='rank:ndcg'.
+Fallback: Focus on a single, well-implemented strategy (e.g., boosted demotion) and clearly articulate how the other strategies would work conceptually. Show the working code for the one strategy and its evaluation.
 
-Create an XGBoost DMatrix from the features X, labels y, and the groups array generated in Step 2.
+Risk: The mock data doesn't produce an interesting diversity problem.
 
-Train the model using xgb.train().
+Fallback: Manually adjust the relevance_score and gender tags in the mock data to force a clear baseline imbalance.
 
-Create the Ranking Function: Create a function rank_templates(query, model, template_db).
+7) Deliverables
+A single, self-contained Python file (re_ranker.py).
 
-Inside the Ranking Function:
+The script should be runnable from the command line (python re_ranker.py).
 
-This function will take a new user query as input.
+The expected output is a series of print statements showing the top-10 list and evaluation metrics for the baseline and all three re-ranking strategies.
 
-It must generate the same feature vector for the input query against all templates in our template_db.
+8) Next Steps (if time remains)
+Add a visual representation of the rankings, perhaps using a simple bar chart with gender distribution.
 
-Use the trained model.predict() method on this feature vector to get a relevance score for each template.
+Introduce a second protected attribute (e.g., style) to demonstrate how the re-ranking logic could be generalized.
 
-Sort the templates by this predicted score in descending order and return the sorted list.
-
-Step 4: Orchestration and Testing
-Goal: Create a main execution block that ties all the steps together and runs a test search to verify the entire pipeline works as expected.
-
-Action Plan (Instructions for AI Assistant):
-
-Create a main block: Use an if __name__ == "__main__": block to orchestrate the script.
-
-Call the Functions in Order:
-
-Call the data generation functions from Step 1.
-
-Call the generate_features function from Step 2 to get X, y, and groups.
-
-Train the XGBRanker model as described in Step 3.
-
-Call the rank_templates function with a test query (e.g., "professional resume").
-
-Print Results: Print the ranked list of template titles from the test query. Verify that the results are more relevant than a simple keyword search would provide. For example, a template titled "Modern CV Design" should rank highly for the "professional resume" query, demonstrating semantic understanding.
+Discuss how the alpha hyperparameter in boosted demotion would be tuned in a production environment (e.g., via A/B testing).

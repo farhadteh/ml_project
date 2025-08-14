@@ -1,135 +1,131 @@
-### Single-File Search-Ranking Prototype — Implementation Plan (aligned with `docs/project_plan.md`)
+### Gender Diversity Re-ranking — Implementation Plan (aligned with `docs/project_plan.md`)
 
-This plan describes a self-contained pipeline in one Python file `search_engine.py` that builds mock data,
-generates hybrid features (BM25, embedding similarity, popularity), trains an `XGBRanker`, and exposes a
-`rank_templates()` function. It follows the repo rules and is structured as a concise checklist.
+This plan describes a self-contained pipeline in one Python file `re_ranker.py` that takes a list of 100
+search results with relevance scores and gender tags, then applies three distinct re-ranking strategies to
+improve gender diversity in the top-10 results. It follows the repo rules and is structured as a concise checklist.
 
 ---
 
 ## 1) Scope, Inputs/Outputs, and Constraints
 
-- **Goal**: Rank template-like assets for a user query using a hybrid (keyword + semantic + business) model.
+- **Goal**: Re-rank search results to improve gender diversity while maintaining relevance quality.
 - **Inputs**:
-  - `query: str`
-  - `template_db: list[dict]` with keys: `template_id: str`, `title: str`, `description: str`,
-    `popularity_score: int`
-  - `k: int` top results to return (default 10)
-- **Outputs**: Top-k list of `(template_id, score)`, sorted by predicted relevance desc (stable tie by id).
-- **Constraints**: Single `.py` file, Python 3.12. Use `rank-bm25`, `sentence-transformers`, and `xgboost`.
-  Pure functions where possible; deterministic behavior; do not require external I/O beyond library usage.
+  - `results: list[dict]` with keys: `item_id: str`, `relevance_score: float`, `gender: str`
+  - Initial list of 100 items with imbalanced gender distribution in top-10
+- **Outputs**: Three different top-10 lists from different re-ranking strategies with diversity metrics.
+- **Constraints**: Single `.py` file, Python 3.12, standard library only (no external dependencies).
+  Pure functions where possible; deterministic behavior; 60-minute development timeframe.
 
 ---
 
 ## 2) Mock Data Construction
 
-- Implement generators inside `search_engine.py`:
-  - `make_template_db() -> list[dict]`: 10–15 dictionaries with the required keys.
-  - `make_search_logs(template_db) -> list[dict]`: training rows with keys `query`, `template_id`, `relevance`.
-    For each unique query, create 4–5 rows: one relevance 3 (perfect match), one 2 (good semantic match),
-    and remaining 1 or 0 (poor matches).
+- Implement generator inside `re_ranker.py`:
+  - `generate_mock_data() -> list[dict]`: 100 dictionaries with keys `item_id`, `relevance_score`, `gender`.
+  - Relevance scores decrease from 1.0 to 0.0 (sorted high to low initially).
+  - Gender distribution creates clear imbalance in top-10: ~8 Male, ~2 Female items.
+  - Use deterministic seed for reproducible results.
 
 ---
 
-## 3) Feature Generation
+## 3) Re-ranking Strategies
 
-- Provide a single entry point:
-  - `generate_features(search_logs, template_db) -> tuple[X, y, groups]`
-- Implementation details:
-  - Convert inputs to pandas DataFrames; left-join logs with templates so each row is a (query, template) pair.
-  - **BM25 (keyword feature)**: Use `rank-bm25` to compute keyword relevance per (query, description/title).
-    Store as `bm25_score`.
-  - **Embeddings (semantic feature)**: Using `sentence-transformers`, encode unique queries and template
-    descriptions; compute cosine similarity for each pair, stored as `embedding_similarity`.
-  - **Popularity (business feature)**: Normalize `popularity_score` into [0, 1] as `popularity_norm`.
-  - Return:
-    - `X`: DataFrame with columns `[bm25_score, embedding_similarity, popularity_norm]`
-    - `y`: Series of `relevance`
-    - `groups`: array of group sizes per query (e.g., `[4, 5, ...]`) for ranking training
+- Implement three distinct approaches:
+  - **Simple Interleaving**: `rerank_interleave(results: list[dict]) -> list[dict]`
+    - Alternate between highest-relevance items from majority and minority gender groups
+    - Guarantees diversity but may significantly impact top relevance scores
+  - **Boosted Demotion**: `rerank_boosted_demotion(results: list[dict], alpha: float = 0.1) -> list[dict]`
+    - Apply penalty: `new_score = original_relevance - alpha * demotion_factor`
+    - Demote over-represented gender after threshold (>5 items in top-10)
+    - Maintains stronger link to original relevance scores
+  - **Proportional Re-ranking**: `rerank_proportional(results: list[dict]) -> list[dict]`
+    - Take top 5 items from each gender group, merge and sort within groups
+    - Provides fixed 50:50 distribution with controlled relevance ordering
 
 ---
 
-## 4) Model Training and Ranking
+## 4) Evaluation and Metrics
 
-- **Training**
-  - Build an `xgboost.DMatrix` with features `X`, labels `y`, and `group=groups`.
-  - Train via `xgboost.train` with `objective='rank:ndcg'`.
-- **Inference**
-  - `rank_templates(query, model, template_db) -> list[tuple[str, float]]`:
-    - Construct features for the new `query` against all templates using the identical pipeline
-      (BM25, embedding similarity, popularity normalization).
-    - Predict with the trained model; sort descending by score; return `(template_id, score)`.
+- **Diversity Scoring**
+  - `evaluate_diversity_score(top_10_results: list[dict]) -> int`:
+    - Count items from minority gender in the top-10 list
+    - Target: achieve count ≥ 3 (improvement from baseline ~2)
+- **Baseline Calculation**
+  - Calculate diversity score for original top-10 (sorted by relevance_score desc)
+  - Establish baseline for comparison across all three strategies
 
 ---
 
 ## 5) Orchestration and Example Run
 
 - Add `if __name__ == "__main__":` to:
-  1) Build `template_db` and `search_logs`.
-  2) Call `generate_features` to get `X, y, groups`.
-  3) Train the model.
-  4) Call `rank_templates("professional resume", model, template_db)`.
-  5) Print the ranked template titles to verify relevance.
+  1) Generate mock data with `generate_mock_data()`.
+  2) Calculate and display baseline diversity score.
+  3) Apply all three re-ranking strategies.
+  4) Calculate diversity scores for each strategy.
+  5) Print comparison table showing strategy names, diversity scores, and trade-offs summary.
 
 ---
 
 ## 6) Edge Cases
 
-- Empty `template_db` or `search_logs` → return empty results or raise a clear error during training.
-- Queries with no lexical overlap but semantic match → embeddings should still yield signal.
-- Stable tie-breaking by `template_id` when scores are equal.
-- Clamp `k` to `[0, N]`.
+- Empty or insufficient data for a gender group → handle gracefully with warning messages.
+- All items have same relevance score → stable tie-breaking by `item_id`.
+- Extreme gender imbalance (e.g., 100% one gender) → strategies should still attempt improvement.
+- Alpha parameter in boosted demotion → validate range [0.0, 1.0] with sensible defaults.
 
 ---
 
 ## 7) Testing (minimal, deterministic)
 
 - Add simple asserts in a `run_tests()` helper:
-  - A perfect lexical/semantic match receives higher predictions than unrelated templates.
-  - A good semantic match (with little lexical overlap) still scores meaningfully above non-matches.
-  - Popularity provides a small but non-dominant nudge.
+  - All three strategies improve diversity score vs. baseline.
+  - Interleaving strategy produces exactly alternating gender pattern in early results.
+  - Boosted demotion with alpha=0 equals original ranking; alpha=1 heavily demotes majority gender.
+  - Proportional strategy produces exactly 5:5 gender split in top-10.
 
 Example test invocation:
 
 ```bash
-uv run pytest -q
+python re_ranker.py  # includes test assertions
 ```
 
 ---
 
 ## 8) Performance Notes
 
-- BM25 computation per (query, template) is lightweight for small N.
-- Embedding computation amortized by encoding unique queries and template descriptions once.
-- Training time is small for the mock dataset; prediction is O(N) per query.
+- All re-ranking strategies operate on pre-sorted lists, complexity O(N) where N=100.
+- Interleaving requires O(N) space for gender group separation.
+- Boosted demotion modifies scores in-place, then sorts: O(N log N).
+- Proportional strategy: O(N) for group separation + O(k log k) for within-group sorting.
 
 ---
 
 ## 9) Acceptance Criteria (Definition of Done)
 
-- [x] One file `search_engine.py` containing: mock data builders, `generate_features`, model training, and
-  `rank_templates`.
-- [x] Features include: BM25 score, embedding cosine similarity, and normalized popularity.
-- [x] Model trained with `objective='rank:ndcg'` and group-wise ranking via `xgboost.DMatrix`.
-- [x] Example query returns a reasonable ranking (e.g., "Modern CV Design" ranks high for "professional resume").
-- [x] Lint/format/tests pass locally.
+- [ ] One file `re_ranker.py` containing: mock data generator, three re-ranking strategies, and evaluation.
+- [ ] Strategies include: simple interleaving, boosted demotion with alpha parameter, and proportional re-ranking.
+- [ ] All three strategies demonstrate improved diversity score (≥ 3) compared to baseline (~2).
+- [ ] Clear output showing baseline and strategy comparisons with trade-offs summary.
+- [ ] Lint/format/tests pass locally; follows repo rules for Python 3.12 and type hints.
 
 ---
 
 ## 10) Conformance to Repo Rules (quick checklist)
 
-- [x] Python 3.12; type hints; small, pure functions.
-- [x] Keep imports organized; run `uv run ruff .` and `uv run black .`.
-- [x] Deterministic behavior with stable tie-breaking.
-- [x] Minimal asserts cover happy path and key edge cases.
+- [ ] Python 3.12; type hints; small, pure functions with meaningful names.
+- [ ] Keep imports organized; run `uv run ruff .` and `uv run black .`.
+- [ ] Deterministic behavior with stable tie-breaking by `item_id`.
+- [ ] Minimal asserts cover happy path and key edge cases; concise test functions [[memory:6073336]].
 
 ---
 
 ## 11) Milestones and Sign-off
 
-1. [x] Scaffold `search_engine.py` with mock data generators.
-2. [x] Implement `generate_features` (BM25, embeddings, popularity) and compute `groups`.
-3. [x] Train `XGBRanker` via `xgboost.train` using `DMatrix` with groups.
-4. [x] Implement `rank_templates` and example run.
-5. [x] Add minimal tests; format/lint; ensure all checks green.
+1. [ ] Scaffold `re_ranker.py` with mock data generator producing imbalanced 100-item dataset.
+2. [ ] Implement simple interleaving and boosted demotion strategies with type hints.
+3. [ ] Implement proportional re-ranking strategy and diversity evaluation function.
+4. [ ] Add main orchestration with clear output comparison and trade-offs summary.
+5. [ ] Add minimal tests; format/lint; ensure all checks green and 60-minute timeframe met.
 
 For each milestone, ensure code is type-annotated, deterministic, formatted, linted, and tests pass.

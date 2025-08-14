@@ -1,51 +1,61 @@
-### 1. Core Principles
-Objective: Ship clear, working, testable, and maintainable code. The principles are domain-agnostic (algorithms, APIs, systems).
-Default Stack: Python 3.12 (standard library only). Fallbacks: Java 17 or TypeScript/Node 18.
-Solution Style: A single-file solution composed of small, pure functions with explicit type hints.
-Assumptions: Assume deterministic behavior (no network, no file I/O unless required).
-AI Mindset: Treat the AI as a collaborator. You own the design and correctness; use the AI for boilerplate, alternatives, and testing.
+Purpose
+Produce clear, working, testable, and maintainable solutions during interviews or coding tasks. Favor Python 3.12 with standard library only. Use Java 17 or TypeScript/Node 18 only if explicitly requested.
 
-### 2. The 5-Step Interaction Model
-Follow this sequence to structure the entire interview session.
-
-Clarify & Restate: Begin by restating the problem in your own words, covering:
-Inputs & Outputs
-Constraints (e.g., scale N, latency, memory)
-Evaluation Criteria & Edge Cases
-Propose a Plan: Outline a brief plan.
-Example: "My plan is to first build a simple, correct baseline. Then, I'll write tests to cover the main logic and edge cases. Finally, I'll refactor for performance and clarity."
-Code & Test Incrementally:
-Start with a minimal, working "happy path" solution.
-Immediately add 2-3 assert statements for the base case and critical edge cases (e.g., empty/null inputs, singletons).
-Refactor & Optimize:
-Once correctness is established, improve the code.
-Extract helper functions, improve naming, and state the time/space complexity of the core logic.
-Apply optimizations only after establishing a correct baseline.
-Final Review:
-Before finishing, do a quick self-review against a checklist (see below).
-Briefly summarize the trade-offs made and potential next steps if you had more time.
-
-### 3. Code Craftsmanship
-Functions: Keep them short (<30 lines), pure (no side effects), and with a single responsibility.
-Clarity: Use clear, consistent names. Write comments only to explain why, not what. Prefer self-documenting code.
-State: Avoid global mutable state. Keep constants near their use. Make randomness explicit and seeded.
-Canonical Structures: Prefer standard function patterns like:
+Core Principles
+Default stack: Python 3.12, standard library only. Avoid external libraries unless the prompt explicitly allows and they are already installed.
+Single-file solutions composed of small, pure functions with explicit type hints and docstrings.
+Deterministic behavior: no network calls and no file I/O unless explicitly required. If randomness is necessary, seed it and make it explicit.
+Treat the AI as a collaborator for boilerplate, alternatives, and test scaffolding, but you own design and correctness.
+Interaction Model (Follow this for every task)
+Clarify & Restate
+Restate the problem in your own words.
+Enumerate inputs and outputs precisely.
+Note constraints (e.g., N, latency, memory).
+Call out evaluation criteria and edge cases (empty inputs, singletons, duplicates, already-sorted, extremes, invalid values).
+Propose a Plan
+Example: “Baseline first, then add asserts for happy path and edge cases, finally refactor for clarity/performance.”
+Code & Test Incrementally
+Start with a minimal, correct happy-path implementation.
+Immediately add 3–5 assert statements covering base cases and critical edge cases.
+Keep functions small (<30 lines), pure, and single-responsibility.
+Refactor & Optimize
+Only after tests pass.
+Extract helpers, improve naming, and explicitly state time/space complexity for the core logic.
+Optimize only after establishing correctness.
+Final Review
+Run a quick self-check (see checklist).
+Summarize trade-offs and note next steps you would take with more time.
+Code Craftsmanship
+Prefer this canonical flow when applicable:
 parse_input(raw) -> structured_data
 validate_input(data) -> None (raises on error)
 solve_core(data) -> result
 format_output(result) -> string
-
-### 4. Performance & Data Structures
-Analyze First: Always state the time and space complexity for your core functions.
-Be Efficient: Avoid re-computation in loops. Use iterators or generators for large data sets instead of materializing them in memory.
-Use the Right Tool:
-Heap (heapq): For top-K, min/max problems.
-Deque (collections.deque): For queue-based algorithms like BFS.
-Set/Dict: For fast membership testing.
-Union-Find: For connectivity problems.
-
-# 5. AI Prompting Patterns
-To Kick-off: "Restate the problem with inputs/outputs/constraints/edge cases. Then outline a 5-step plan."
-For Implementation: "Generate a pure Python solution using  the standard library an in case requred external library alredy insteeld in the project. Include type hints, docstrings, and 3-5 asserts covering the happy path and edge cases."
-For Refinement: "Refactor this into small, composable functions with clear names. State the time/space complexity."
-For Optimization: "Suggest a heap-based optimization for this code and show how to test that it doesn't change correctness."
+Use clear, consistent names; write comments to explain “why,” not “what.”
+Avoid global mutable state; keep constants near where they are used.
+Include type hints and concise docstrings on all public functions.
+Performance & Data Structures
+Analyze before optimizing; state time and space complexity of solve_core.
+Avoid recomputation in loops; use iterators/generators for large data.
+Choose data structures purposefully: sets/dicts for membership, heapq for top-K or streaming min/max, deque for BFS, union-find for connectivity.
+Testing Guidance
+Inline asserts immediately after writing the initial solution.
+Cover: happy path, empty/null input, singleton, extremes, and a known tricky/edge case.
+Keep tests deterministic and fast; no I/O or network in tests unless required by the prompt.
+Response Pattern Templates
+To Kick-off:
+“Restate the problem with inputs/outputs/constraints/edge cases. Then outline a 5-step plan.”
+For Implementation:
+“Generate a pure Python solution using the standard library. Include type hints, docstrings, and 3–5 asserts covering the happy path and edge cases.”
+For Refinement:
+“Refactor this into small, composable functions with clear names. State the time/space complexity.”
+For Optimization:
+“Suggest a heap-based optimization for this code and show how to test that it doesn’t change correctness.”
+Self-Review Checklist (quick pass before finishing)
+Problem restated correctly with clear inputs/outputs and constraints.
+Single-file, small pure functions with type hints and docstrings.
+Deterministic: no unintended I/O or network; randomness seeded if used.
+3–5 asserts cover happy path and edge cases.
+Time and space complexity stated for the core algorithm.
+Good names, minimal “why” comments, no unnecessary complexity.
+Clear trade-offs and next steps summarized.

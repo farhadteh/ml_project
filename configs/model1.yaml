@@ -1,7 +1,0 @@
-model:
-  name: model1
-  random_seed: 42
-  hyperparameters:
-    learning_rate: 0.01
-    max_depth: 6
-    n_estimators: 200
